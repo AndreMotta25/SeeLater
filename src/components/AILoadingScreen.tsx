@@ -14,6 +14,7 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
     embedder: { progress: 0, status: 'Aguardando...' },
   })
   const [isComplete, setIsComplete] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -46,6 +47,22 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
         // Load all models
         await aiService.loadAll()
 
+        // Check if AI is supported
+        const support = aiService.getIsSupported()
+        if (!support.supported && support.error) {
+          if (mounted) {
+            setError(support.error)
+            // Still continue after showing error briefly
+            setTimeout(() => {
+              if (mounted) {
+                unsubscribe()
+                onComplete()
+              }
+            }, 3000)
+          }
+          return
+        }
+
         if (mounted) {
           setIsComplete(true)
           // Small delay to show 100% progress
@@ -56,12 +73,18 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
             }
           }, 500)
         }
-      } catch (error) {
-        console.error('Failed to load AI models:', error)
+      } catch (err) {
+        console.error('Failed to load AI models:', err)
         if (mounted) {
-          unsubscribe()
+          const errorMsg = err instanceof Error ? err.message : 'Erro ao carregar IA'
+          setError(errorMsg)
           // Continue anyway - app works without AI
-          onComplete()
+          setTimeout(() => {
+            if (mounted) {
+              unsubscribe()
+              onComplete()
+            }
+          }, 3000)
         }
       }
     }
@@ -195,6 +218,18 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
             100% no seu navegador. Nenhum dado sai do seu dispositivo.
           </p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-sm text-yellow-800 dark:text-yellow-300 text-center">
+              <span className="font-medium">⚠️ IA não disponível:</span> {error}
+            </p>
+            <p className="text-xs text-yellow-700 dark:text-yellow-400 text-center mt-2">
+              O app continuará funcionando sem recomendações de IA.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

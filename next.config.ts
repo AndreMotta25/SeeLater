@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Important: DON'T use COOP/COEP headers with PWA as they conflict
+  // Transformers.js will work in single-threaded mode on Safari
 };
 
 export default withPWA({

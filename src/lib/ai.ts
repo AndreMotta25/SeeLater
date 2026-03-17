@@ -16,6 +16,12 @@ export type ProgressCallback = (data: {
 env.allowLocalModels = true
 env.allowRemoteModels = true
 
+// Safari compatibility: disable multithreading if not supported
+if (typeof SharedArrayBuffer === 'undefined') {
+  // Safari without proper headers falls back to single thread
+  env.useBrowserCache = true
+}
+
 // Categories for automatic classification
 export const CATEGORIES = [
   'Tecnologia',
@@ -56,6 +62,8 @@ class AIService {
   private classifier: any = null
   private embedder: any = null
   private progressCallbacks: Set<AIProgressCallback> = new Set()
+  private isSupported: boolean = true
+  private supportError: string | null = null
 
   /**
    * Register a callback for model loading progress
@@ -146,17 +154,65 @@ class AIService {
   }
 
   /**
+   * Check if browser supports required features
+   */
+  private checkSupport(): { supported: boolean; error?: string } {
+    // Check WebAssembly support
+    if (typeof WebAssembly === 'undefined') {
+      return { supported: false, error: 'WebAssembly não é suportado neste navegador' }
+    }
+
+    // Check if we can allocate enough memory (Safari may have limits)
+    try {
+      // Try to allocate a 256MB buffer (models need this)
+      const testSize = 256 * 1024 * 1024
+      const buffer = new ArrayBuffer(testSize)
+      // Safari may allow allocation but fail during actual use
+      if (buffer.byteLength < testSize) {
+        return { supported: false, error: 'Memória insuficiente para os modelos de IA' }
+      }
+    } catch {
+      return { supported: false, error: 'Memória insuficiente para os modelos de IA' }
+    }
+
+    return { supported: true }
+  }
+
+  /**
    * Load both models
    */
   async loadAll(): Promise<void> {
-    await Promise.all([this.loadClassifier(), this.loadEmbedder()])
+    // Check browser support first
+    const support = this.checkSupport()
+    if (!support.supported) {
+      this.isSupported = false
+      this.supportError = support.error || 'Navegador não suportado'
+      console.warn('[AIService] Browser not supported:', this.supportError)
+      return // Continue without AI
+    }
+
+    try {
+      await Promise.all([this.loadClassifier(), this.loadEmbedder()])
+    } catch (error) {
+      console.error('[AIService] Failed to load models:', error)
+      this.isSupported = false
+      this.supportError = error instanceof Error ? error.message : 'Erro ao carregar modelos'
+      // Don't throw - allow app to continue without AI
+    }
+  }
+
+  /**
+   * Check if browser supports AI features
+   */
+  getIsSupported(): { supported: boolean; error?: string } {
+    return { supported: this.isSupported, error: this.supportError ?? undefined }
   }
 
   /**
    * Check if models are loaded
    */
   isReady(): boolean {
-    return this.classifier !== null && this.embedder !== null
+    return this.isSupported && this.classifier !== null && this.embedder !== null
   }
 
   /**
