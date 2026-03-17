@@ -1,0 +1,158 @@
+'use client'
+
+import { useItems } from '@/hooks/use-items'
+import { AILoadingScreen } from '@/components/AILoadingScreen'
+import {
+  MobileHeader,
+  BottomNavigation,
+  AIRecommendationCard,
+  AIRecommendationEmpty,
+  QueueSection
+} from '@/components/mobile'
+import { useState, useEffect } from 'react'
+import { aiService } from '@/lib/ai'
+import type { Item } from '@/types'
+
+const AI_LOADED_KEY = 'depois_ai_loaded'
+
+export default function HomePage() {
+  const {
+    unviewed,
+    recentlyViewed,
+    markAsViewed,
+    deleteItem,
+    getSuggestion,
+    dismissSuggestion,
+    resetSuggestionDismissal,
+    loading,
+    unviewedCount,
+    enriching,
+    addItem,
+    enrichUrl,
+    error
+  } = useItems()
+
+  const [aiLoaded, setAiLoaded] = useState(false)
+  const [suggestion, setSuggestion] = useState<Item | null>(null)
+  const [suggestionLoading, setSuggestionLoading] = useState(false)
+
+  // Check if AI was previously loaded and load models
+  useEffect(() => {
+    const wasLoaded = localStorage.getItem(AI_LOADED_KEY)
+    if (wasLoaded === 'true') {
+      // Models were downloaded before, load them in background
+      aiService.loadAll().then(() => {
+        console.log('[Page] AI models loaded from cache')
+        setAiLoaded(true)
+        loadSuggestion()
+      }).catch((err) => {
+        console.warn('[Page] Failed to load AI models:', err)
+        setAiLoaded(true) // Continue anyway
+      })
+    }
+  }, [])
+
+  async function loadSuggestion() {
+    console.log('[Page] loadSuggestion called')
+
+    if (!aiService.isReady()) {
+      console.log('[Page] AI not ready for suggestion')
+      return
+    }
+
+    setSuggestionLoading(true)
+    try {
+      const suggested = await getSuggestion()
+      console.log('[Page] Suggestion result:', suggested?.title || 'none')
+      setSuggestion(suggested)
+    } catch (err) {
+      console.warn('[Page] Failed to load suggestion:', err)
+    } finally {
+      setSuggestionLoading(false)
+    }
+  }
+
+  async function handleAILoaded() {
+    setAiLoaded(true)
+    localStorage.setItem(AI_LOADED_KEY, 'true')
+    await loadSuggestion()
+  }
+
+  async function handleViewItem(id: string) {
+    console.log('[Page] Handling view item:', id)
+    await markAsViewed(id)
+
+    // Clear suggestion if it was the viewed item
+    if (suggestion?.id === id) {
+      setSuggestion(null)
+    }
+
+    // Load new suggestion after viewing an item
+    console.log('[Page] Loading new suggestion after viewing item')
+    await loadSuggestion()
+  }
+
+  async function handleDismissSuggestion() {
+    if (!suggestion) return
+
+    console.log('[Page] Dismissing suggestion:', suggestion.id)
+    await dismissSuggestion(suggestion.id)
+    setSuggestion(null)
+
+    // Load new suggestion
+    console.log('[Page] Loading new suggestion after dismiss')
+    await loadSuggestion()
+  }
+
+  async function handleViewSuggestion() {
+    if (!suggestion) return
+
+    await markAsViewed(suggestion.id)
+    setSuggestion(null)
+
+    // Load new suggestion
+    await loadSuggestion()
+  }
+
+  // Show AI loading screen on first visit
+  if (!aiLoaded) {
+    return <AILoadingScreen onComplete={handleAILoaded} />
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0F0F1A] pb-20">
+      <MobileHeader />
+
+      <main className="max-w-lg mx-auto">
+        {/* AI Suggestion Section */}
+        {suggestion ? (
+          <AIRecommendationCard
+            item={suggestion}
+            onView={handleViewSuggestion}
+            onDismiss={handleDismissSuggestion}
+            loading={suggestionLoading}
+          />
+        ) : !suggestionLoading && recentlyViewed.length > 0 ? (
+          <AIRecommendationEmpty />
+        ) : null}
+
+        {/* Queue Section */}
+        <QueueSection
+          items={unviewed}
+          onView={handleViewItem}
+          onDelete={deleteItem}
+          onResetDismissal={resetSuggestionDismissal}
+        />
+
+        {/* Error Message */}
+        {error && (
+          <div className="mx-4 mb-4 p-4 bg-red-900/20 border border-red-800 rounded-xl">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+      </main>
+
+      <BottomNavigation />
+    </div>
+  )
+}
