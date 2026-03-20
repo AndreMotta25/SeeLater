@@ -116,6 +116,12 @@ class AIService {
   async loadClassifier(): Promise<void> {
     if (this.classifier) return
 
+    // Check if classifier is disabled via environment variable
+    if (process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false') {
+      console.log('[AIService] Classifier disabled via NEXT_PUBLIC_ENABLE_AI_CLASSIFIER=false')
+      return
+    }
+
     this.notifyProgress({
       model: 'classifier',
       status: 'loading',
@@ -192,7 +198,19 @@ class AIService {
     }
 
     try {
-      await Promise.all([this.loadClassifier(), this.loadEmbedder()])
+      // Only load models that are enabled
+      const classifierDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false'
+      const tasks = []
+
+      if (!classifierDisabled) {
+        tasks.push(this.loadClassifier())
+      } else {
+        console.log('[AIService] Skipping classifier load (disabled)')
+      }
+
+      tasks.push(this.loadEmbedder())
+
+      await Promise.all(tasks)
     } catch (error) {
       console.error('[AIService] Failed to load models:', error)
       this.isSupported = false
@@ -212,6 +230,11 @@ class AIService {
    * Check if models are loaded
    */
   isReady(): boolean {
+    const classifierDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false'
+    // If classifier is disabled, only need embedder to be "ready"
+    if (classifierDisabled) {
+      return this.isSupported && this.embedder !== null
+    }
     return this.isSupported && this.classifier !== null && this.embedder !== null
   }
 
@@ -220,6 +243,11 @@ class AIService {
    * Uses zero-shot classification with NLI
    */
   async classify(text: string): Promise<Category> {
+    if (process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false') {
+      // Return default category if classifier is disabled
+      return 'Outros'
+    }
+
     if (!this.classifier) {
       await this.loadClassifier()
     }
