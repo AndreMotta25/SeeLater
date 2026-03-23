@@ -19,9 +19,6 @@ env.allowRemoteModels = true
 // ALWAYS use browser cache (IndexedDB) for faster subsequent loads
 env.useBrowserCache = true
 
-// Use a custom cache name to avoid conflicts
-env.modelCacheName = 'depois-ai-models'
-
 // Safari compatibility: disable multithreading if not supported
 if (typeof SharedArrayBuffer === 'undefined') {
   // Safari without proper headers falls back to single thread
@@ -32,7 +29,6 @@ if (typeof SharedArrayBuffer === 'undefined') {
 if (typeof window !== 'undefined') {
   console.log('[AIService] Cache config:', {
     useBrowserCache: env.useBrowserCache,
-    modelCacheName: env.modelCacheName,
   })
 }
 
@@ -132,7 +128,8 @@ class AIService {
     if (this.cacheChecked) return this.isFromCache
 
     try {
-      const cacheName = env.modelCacheName || 'transformers-cache'
+      // Transformers.js uses 'transformers-cache' as the default IndexedDB name
+      const cacheName = 'transformers-cache'
       const dbOpen = indexedDB.open(cacheName)
 
       const hasCache = await new Promise<boolean>((resolve) => {
