@@ -16,10 +16,24 @@ export type ProgressCallback = (data: {
 env.allowLocalModels = true
 env.allowRemoteModels = true
 
+// ALWAYS use browser cache (IndexedDB) for faster subsequent loads
+env.useBrowserCache = true
+
+// Use a custom cache name to avoid conflicts
+env.modelCacheName = 'depois-ai-models'
+
 // Safari compatibility: disable multithreading if not supported
 if (typeof SharedArrayBuffer === 'undefined') {
   // Safari without proper headers falls back to single thread
   env.useBrowserCache = true
+}
+
+// Debug: Log cache status
+if (typeof window !== 'undefined') {
+  console.log('[AIService] Cache config:', {
+    useBrowserCache: env.useBrowserCache,
+    modelCacheName: env.modelCacheName,
+  })
 }
 
 // Categories for automatic classification
@@ -64,6 +78,8 @@ class AIService {
   private progressCallbacks: Set<AIProgressCallback> = new Set()
   private isSupported: boolean = true
   private supportError: string | null = null
+  private cacheChecked: boolean = false
+  private isFromCache: boolean = false
 
   /**
    * Register a callback for model loading progress
@@ -88,7 +104,7 @@ class AIService {
       if (data.status === 'progress') {
         this.notifyProgress({
           model,
-          status: 'downloading',
+          status: this.isFromCache ? 'loading' : 'downloading',
           progress: data.progress || 0,
           file: data.file,
         })
@@ -101,11 +117,47 @@ class AIService {
       } else if (data.status === 'initiate') {
         this.notifyProgress({
           model,
-          status: 'downloading',
+          status: this.isFromCache ? 'loading' : 'downloading',
           progress: 0,
           file: data.file,
         })
       }
+    }
+  }
+
+  /**
+   * Check if models are cached in IndexedDB
+   */
+  private async checkCache(): Promise<boolean> {
+    if (this.cacheChecked) return this.isFromCache
+
+    try {
+      const cacheName = env.modelCacheName || 'transformers-cache'
+      const dbOpen = indexedDB.open(cacheName)
+
+      const hasCache = await new Promise<boolean>((resolve) => {
+        dbOpen.onsuccess = () => {
+          const db = dbOpen.result
+          // Check if there are any stores with model data
+          const hasModels = db.objectStoreNames.length > 0
+          db.close()
+          console.log('[AIService] Cache check:', { cacheName, hasModels, storeCount: db.objectStoreNames.length })
+          resolve(hasModels)
+        }
+        dbOpen.onerror = () => {
+          console.warn('[AIService] No cache found')
+          resolve(false)
+        }
+      })
+
+      this.isFromCache = hasCache
+      this.cacheChecked = true
+      return hasCache
+    } catch (error) {
+      console.warn('[AIService] Cache check failed:', error)
+      this.isFromCache = false
+      this.cacheChecked = true
+      return false
     }
   }
 
@@ -204,6 +256,9 @@ class AIService {
     }
 
     try {
+      // Check if models are cached (for better UX)
+      await this.checkCache()
+
       // Only load models that are enabled
       const classifierDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false'
       const embedderDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_EMBEDDER === 'false'
@@ -266,6 +321,13 @@ class AIService {
 
     // Both enabled: need both to be "ready"
     return this.isSupported && this.classifier !== null && this.embedder !== null
+  }
+
+  /**
+   * Check if loading from cache (for UI purposes)
+   */
+  isLoadingFromCache(): boolean {
+    return this.isFromCache
   }
 
   /**
