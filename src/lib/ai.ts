@@ -144,6 +144,12 @@ class AIService {
   async loadEmbedder(): Promise<void> {
     if (this.embedder) return
 
+    // Check if embedder is disabled via environment variable
+    if (process.env.NEXT_PUBLIC_ENABLE_AI_EMBEDDER === 'false') {
+      console.log('[AIService] Embedder disabled via NEXT_PUBLIC_ENABLE_AI_EMBEDDER=false')
+      return
+    }
+
     this.notifyProgress({
       model: 'embedder',
       status: 'loading',
@@ -200,6 +206,7 @@ class AIService {
     try {
       // Only load models that are enabled
       const classifierDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false'
+      const embedderDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_EMBEDDER === 'false'
       const tasks = []
 
       if (!classifierDisabled) {
@@ -208,7 +215,16 @@ class AIService {
         console.log('[AIService] Skipping classifier load (disabled)')
       }
 
-      tasks.push(this.loadEmbedder())
+      if (!embedderDisabled) {
+        tasks.push(this.loadEmbedder())
+      } else {
+        console.log('[AIService] Skipping embedder load (disabled)')
+      }
+
+      if (tasks.length === 0) {
+        console.log('[AIService] All AI models disabled')
+        return
+      }
 
       await Promise.all(tasks)
     } catch (error) {
@@ -231,10 +247,24 @@ class AIService {
    */
   isReady(): boolean {
     const classifierDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false'
+    const embedderDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_EMBEDDER === 'false'
+
+    // If both are disabled, not "ready" for AI features
+    if (classifierDisabled && embedderDisabled) {
+      return false
+    }
+
     // If classifier is disabled, only need embedder to be "ready"
     if (classifierDisabled) {
       return this.isSupported && this.embedder !== null
     }
+
+    // If embedder is disabled, only need classifier to be "ready"
+    if (embedderDisabled) {
+      return this.isSupported && this.classifier !== null
+    }
+
+    // Both enabled: need both to be "ready"
     return this.isSupported && this.classifier !== null && this.embedder !== null
   }
 
