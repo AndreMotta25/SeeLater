@@ -5,22 +5,22 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'img.youtube.com',
-        pathname: '/vi/**',
+        protocol: "https",
+        hostname: "img.youtube.com",
+        pathname: "/vi/**",
       },
       {
-        protocol: 'https',
-        hostname: 'www.google.com',
-        pathname: '/s2/favicons/**',
+        protocol: "https",
+        hostname: "www.google.com",
+        pathname: "/s2/favicons/**",
       },
       {
-        protocol: 'https',
-        hostname: '**', // Permite qualquer domínio https para thumbnails OG
+        protocol: "https",
+        hostname: "**", // Permite qualquer domínio https para thumbnails OG
       },
       {
-        protocol: 'http',
-        hostname: '**', // Permite qualquer domínio http (fallback)
+        protocol: "http",
+        hostname: "**", // Permite qualquer domínio http (fallback)
       },
     ],
   },

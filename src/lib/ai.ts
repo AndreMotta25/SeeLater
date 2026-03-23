@@ -27,8 +27,12 @@ if (typeof SharedArrayBuffer === 'undefined') {
 
 // Debug: Log cache status
 if (typeof window !== 'undefined') {
-  console.log('[AIService] Cache config:', {
+  console.log('[AIService] ⚙️ Config:', {
     useBrowserCache: env.useBrowserCache,
+    allowLocalModels: env.allowLocalModels,
+    allowRemoteModels: env.allowRemoteModels,
+    classifierEnabled: process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER !== 'false',
+    embedderEnabled: process.env.NEXT_PUBLIC_ENABLE_AI_EMBEDDER !== 'false',
   })
 }
 
@@ -97,7 +101,11 @@ class AIService {
    */
   private createProgressCallback(model: AIProgress['model']): ProgressCallback {
     return (data: any) => {
+      const timestamp = new Date().toISOString().split('T')[1].split('.')[0]
+      const prefix = `[${timestamp}] [${model.toUpperCase()}]`
+
       if (data.status === 'progress') {
+        console.log(`${prefix} Progress: ${data.progress}% - ${data.file || 'unknown'}`)
         this.notifyProgress({
           model,
           status: this.isFromCache ? 'loading' : 'downloading',
@@ -105,12 +113,14 @@ class AIService {
           file: data.file,
         })
       } else if (data.status === 'done') {
+        console.log(`${prefix} ✓ Done!`)
         this.notifyProgress({
           model,
           status: 'ready',
           progress: 100,
         })
       } else if (data.status === 'initiate') {
+        console.log(`${prefix} Starting: ${data.file || 'model files'}`)
         this.notifyProgress({
           model,
           status: this.isFromCache ? 'loading' : 'downloading',
@@ -130,6 +140,8 @@ class AIService {
     try {
       // Transformers.js uses 'transformers-cache' as the default IndexedDB name
       const cacheName = 'transformers-cache'
+      console.log(`[AIService] 🔍 Checking cache "${cacheName}"...`)
+
       const dbOpen = indexedDB.open(cacheName)
 
       const hasCache = await new Promise<boolean>((resolve) => {
@@ -137,12 +149,13 @@ class AIService {
           const db = dbOpen.result
           // Check if there are any stores with model data
           const hasModels = db.objectStoreNames.length > 0
+          const stores = Array.from(db.objectStoreNames)
           db.close()
-          console.log('[AIService] Cache check:', { cacheName, hasModels, storeCount: db.objectStoreNames.length })
+          console.log(`[AIService] 📦 Cache found: ${hasModels ? 'YES' : 'NO'} | Stores: ${stores.join(', ')}`)
           resolve(hasModels)
         }
         dbOpen.onerror = () => {
-          console.warn('[AIService] No cache found')
+          console.warn('[AIService] ❌ No cache found (first time?)')
           resolve(false)
         }
       })
@@ -151,7 +164,7 @@ class AIService {
       this.cacheChecked = true
       return hasCache
     } catch (error) {
-      console.warn('[AIService] Cache check failed:', error)
+      console.warn('[AIService] ❌ Cache check failed:', error)
       this.isFromCache = false
       this.cacheChecked = true
       return false
@@ -163,7 +176,10 @@ class AIService {
    * Used for automatic categorization
    */
   async loadClassifier(): Promise<void> {
-    if (this.classifier) return
+    if (this.classifier) {
+      console.log('[AIService] ✓ Classifier already loaded, skipping...')
+      return
+    }
 
     // Check if classifier is disabled via environment variable
     if (process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false') {
@@ -171,12 +187,16 @@ class AIService {
       return
     }
 
+    const fromCache = this.isFromCache
+    console.log(`[AIService] Loading classifier (from cache: ${fromCache})...`)
+
     this.notifyProgress({
       model: 'classifier',
       status: 'loading',
       progress: 0,
     })
 
+    const startTime = performance.now()
     this.classifier = await pipeline(
       'zero-shot-classification',
       'Xenova/nli-deberta-v3-xsmall',
@@ -184,6 +204,8 @@ class AIService {
         progress_callback: this.createProgressCallback('classifier'),
       }
     )
+    const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)
+    console.log(`[AIService] ✓ Classifier loaded in ${elapsed}s`)
   }
 
   /**
@@ -191,7 +213,10 @@ class AIService {
    * Used for semantic similarity
    */
   async loadEmbedder(): Promise<void> {
-    if (this.embedder) return
+    if (this.embedder) {
+      console.log('[AIService] ✓ Embedder already loaded, skipping...')
+      return
+    }
 
     // Check if embedder is disabled via environment variable
     if (process.env.NEXT_PUBLIC_ENABLE_AI_EMBEDDER === 'false') {
@@ -199,12 +224,16 @@ class AIService {
       return
     }
 
+    const fromCache = this.isFromCache
+    console.log(`[AIService] Loading embedder (from cache: ${fromCache})...`)
+
     this.notifyProgress({
       model: 'embedder',
       status: 'loading',
       progress: 0,
     })
 
+    const startTime = performance.now()
     this.embedder = await pipeline(
       'feature-extraction',
       'Xenova/all-MiniLM-L6-v2',
@@ -212,6 +241,8 @@ class AIService {
         progress_callback: this.createProgressCallback('embedder'),
       }
     )
+    const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)
+    console.log(`[AIService] ✓ Embedder loaded in ${elapsed}s`)
   }
 
   /**
@@ -252,6 +283,9 @@ class AIService {
       return // Continue without AI
     }
 
+    const overallStartTime = performance.now()
+    console.log('[AIService] 🚀 Starting AI model loading...')
+
     try {
       // Check if models are cached (for better UX)
       await this.checkCache()
@@ -264,23 +298,26 @@ class AIService {
       if (!classifierDisabled) {
         tasks.push(this.loadClassifier())
       } else {
-        console.log('[AIService] Skipping classifier load (disabled)')
+        console.log('[AIService] ⏭️ Skipping classifier load (disabled)')
       }
 
       if (!embedderDisabled) {
         tasks.push(this.loadEmbedder())
       } else {
-        console.log('[AIService] Skipping embedder load (disabled)')
+        console.log('[AIService] ⏭️ Skipping embedder load (disabled)')
       }
 
       if (tasks.length === 0) {
-        console.log('[AIService] All AI models disabled')
+        console.log('[AIService] ⏭️ All AI models disabled')
         return
       }
 
       await Promise.all(tasks)
+
+      const elapsed = ((performance.now() - overallStartTime) / 1000).toFixed(1)
+      console.log(`[AIService] ✅ All models loaded in ${elapsed}s!`)
     } catch (error) {
-      console.error('[AIService] Failed to load models:', error)
+      console.error('[AIService] ❌ Failed to load models:', error)
       this.isSupported = false
       this.supportError = error instanceof Error ? error.message : 'Erro ao carregar modelos'
       // Don't throw - allow app to continue without AI
