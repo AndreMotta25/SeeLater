@@ -143,6 +143,20 @@ class AIService {
       const cacheName = 'transformers-cache'
       console.log(`[AIService] 🔍 Checking cache "${cacheName}"...`)
 
+      // Check estimated storage usage
+      if ('storage' in navigator && 'estimate' in navigator.storage) {
+        const estimate = await navigator.storage.estimate()
+        console.log('[AIService] 💾 Storage estimate:', {
+          usage: `${(estimate.usage || 0) / 1024 / 1024} MB`,
+          quota: `${(estimate.quota || 0) / 1024 / 1024} MB`,
+          available: `${((estimate.quota || 0) - (estimate.usage || 0)) / 1024 / 1024} MB`,
+        })
+      }
+
+      // List all IndexedDB databases
+      const databases = await indexedDB.databases()
+      console.log('[AIService] 🗄️ All IndexedDB databases:', databases.map(db => db.name))
+
       const dbOpen = indexedDB.open(cacheName)
 
       const hasCache = await new Promise<boolean>((resolve) => {
@@ -151,8 +165,25 @@ class AIService {
           // Check if there are any stores with model data
           const hasModels = db.objectStoreNames.length > 0
           const stores = Array.from(db.objectStoreNames)
+
+          // Log details of each store
+          if (hasModels) {
+            console.log(`[AIService] 📦 Cache found: ${hasModels ? 'YES' : 'NO'} | Stores: ${stores.join(', ')}`)
+
+            // Count records in each store
+            const transaction = db.transaction(stores, 'readonly')
+            stores.forEach(storeName => {
+              const objectStore = transaction.objectStore(storeName)
+              const countRequest = objectStore.count()
+              countRequest.onsuccess = () => {
+                console.log(`[AIService]   - "${storeName}": ${countRequest.result} records`)
+              }
+            })
+          } else {
+            console.log(`[AIService] 📦 Cache found: NO | Stores: (empty)`)
+          }
+
           db.close()
-          console.log(`[AIService] 📦 Cache found: ${hasModels ? 'YES' : 'NO'} | Stores: ${stores.join(', ')}`)
           resolve(hasModels)
         }
         dbOpen.onerror = () => {
