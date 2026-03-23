@@ -34,8 +34,44 @@ export default withPWA({
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
   runtimeCaching: [
+    // Cache static assets (JS, CSS, fonts) with StaleWhileRevalidate
+    {
+      urlPattern: /\.(?:js|css|woff|woff2|ttf|otf)$/i,
+      handler: "StaleWhileRevalidate",
+      options: {
+        cacheName: "static-assets",
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+        },
+      },
+    },
+    // Cache images with CacheFirst
+    {
+      urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
+      handler: "CacheFirst",
+      options: {
+        cacheName: "images",
+        expiration: {
+          maxEntries: 200,
+          maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+        },
+      },
+    },
+    // API routes - NetworkFirst with fallback to cache
+    {
+      urlPattern: /^https:\/\/.*\/api\/.*/i,
+      handler: "NetworkFirst",
+      options: {
+        cacheName: "api-cache",
+        expiration: {
+          maxEntries: 50,
+          maxAgeSeconds: 60 * 60 * 24, // 1 day
+        },
+      },
+    },
     // IMPORTANT: DO NOT cache Hugging Face/Transformers.js model files
-    // Transformers.js needs to manage its own IndexedDB cache for offline functionality
+    // Transformers.js needs to manage its own Cache API for offline functionality
     {
       urlPattern: /^https:\/\/huggingface\.co\/.*/i,
       handler: "NetworkFirst",
