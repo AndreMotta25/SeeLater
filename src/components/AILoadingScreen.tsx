@@ -16,6 +16,7 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
   const [isComplete, setIsComplete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fromCache, setFromCache] = useState(false)
+  const [persistentStorage, setPersistentStorage] = useState<boolean | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -49,6 +50,14 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
         const isFromCache = aiService.isLoadingFromCache()
         if (mounted) {
           setFromCache(isFromCache)
+        }
+
+        // Check persistent storage permission
+        if ('storage' in navigator && 'persisted' in navigator.storage) {
+          const isPersistent = await navigator.storage.persisted()
+          if (mounted) {
+            setPersistentStorage(isPersistent)
+          }
         }
 
         // Load all models
@@ -237,6 +246,18 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
               : 'A IA roda 100% no seu navegador. Nenhum dado sai do seu dispositivo.'}
           </p>
         </div>
+
+        {/* Persistent Storage Warning */}
+        {!fromCache && persistentStorage === false && (
+          <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+            <p className="text-sm text-orange-800 dark:text-orange-300 text-center">
+              <span className="font-medium">⚠️ Armazenamento não persistente:</span>
+            </p>
+            <p className="text-xs text-orange-700 dark:text-orange-400 text-center mt-2">
+              O navegador pode apagar os modelos de IA. Para usar offline, verifique as configurações de privacidade do navegador e desative "Limpar dados ao sair".
+            </p>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (

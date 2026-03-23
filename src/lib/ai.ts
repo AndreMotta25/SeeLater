@@ -25,6 +25,19 @@ if (typeof SharedArrayBuffer === 'undefined') {
   env.useBrowserCache = true
 }
 
+// IMPORTANT: Try to request persistent storage to prevent browser from clearing IndexedDB
+// This is critical for offline functionality
+if (typeof window !== 'undefined' && 'storage' in navigator && 'persist' in navigator.storage) {
+  navigator.storage.persist().then((persistent) => {
+    console.log('[AIService] 💾 Persistent storage granted:', persistent)
+    if (!persistent) {
+      console.warn('[AIService] ⚠️ Persistent storage NOT granted - IndexedDB may be cleared by browser')
+    }
+  }).catch((err) => {
+    console.warn('[AIService] ⚠️ Could not request persistent storage:', err)
+  })
+}
+
 // Debug: Log cache status
 if (typeof window !== 'undefined') {
   console.log('[AIService] ⚙️ Config:', {
@@ -143,6 +156,15 @@ class AIService {
       const cacheName = 'transformers-cache'
       console.log(`[AIService] 🔍 Checking cache "${cacheName}"...`)
 
+      // Check if persistent storage is granted
+      if ('storage' in navigator && 'persisted' in navigator.storage) {
+        const isPersistent = await navigator.storage.persisted()
+        console.log('[AIService] 🔒 Persistent storage:', isPersistent ? 'GRANTED' : 'NOT GRANTED')
+        if (!isPersistent) {
+          console.warn('[AIService] ⚠️ WARNING: Browser may clear IndexedDB on exit!')
+        }
+      }
+
       // Check estimated storage usage
       if ('storage' in navigator && 'estimate' in navigator.storage) {
         const estimate = await navigator.storage.estimate()
@@ -181,13 +203,19 @@ class AIService {
             })
           } else {
             console.log(`[AIService] 📦 Cache found: NO | Stores: (empty)`)
+            console.warn('[AIService] ⚠️ IndexedDB database exists but has no object stores!')
+            console.warn('[AIService] 💡 Possible causes:')
+            console.warn('   1. Browser is clearing site data on exit (check browser settings)')
+            console.warn('   2. Browser extension is clearing storage')
+            console.warn('   3. Privacy mode is blocking IndexedDB writes')
+            console.warn('   4. IndexedDB permission was denied')
           }
 
           db.close()
           resolve(hasModels)
         }
-        dbOpen.onerror = () => {
-          console.warn('[AIService] ❌ No cache found (first time?)')
+        dbOpen.onerror = (event) => {
+          console.warn('[AIService] ❌ No cache found (first time?)', event)
           resolve(false)
         }
       })
@@ -362,6 +390,31 @@ class AIService {
 
         const elapsed = ((performance.now() - overallStartTime) / 1000).toFixed(1)
         console.log(`[AIService] ✅ All models loaded in ${elapsed}s!`)
+
+        // POST-LOAD VERIFICATION: Check if models were actually written to IndexedDB
+        console.log('[AIService] 🔍 Verifying IndexedDB write...')
+        try {
+          const dbOpen = indexedDB.open('transformers-cache')
+          dbOpen.onsuccess = () => {
+            const db = dbOpen.result
+            const storeCount = db.objectStoreNames.length
+            const stores = Array.from(db.objectStoreNames)
+            console.log(`[AIService] 📊 IndexedDB after load: ${storeCount} stores`)
+            if (storeCount === 0) {
+              console.error('[AIService] ❌ CRITICAL: Models loaded but NO IndexedDB stores created!')
+              console.error('[AIService] ❌ This means models will NOT persist between sessions!')
+              console.error('[AIService] 💡 Check:')
+              console.error('   - Browser settings: "Clear site data when you close all windows"')
+              console.error('   - Privacy extensions clearing storage')
+              console.error('   - IndexedDB permission denied')
+            } else {
+              console.log(`[AIService] ✅ Stores: ${stores.join(', ')}`)
+            }
+            db.close()
+          }
+        } catch (err) {
+          console.warn('[AIService] ⚠️ Could not verify IndexedDB write:', err)
+        }
       } catch (error) {
         console.error('[AIService] ❌ Failed to load models:', error)
         this.isSupported = false
