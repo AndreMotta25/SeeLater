@@ -249,6 +249,7 @@ class AIService {
 
     const fromCache = this.isFromCache
     console.log(`[AIService] Loading classifier (from cache: ${fromCache})...`)
+    console.log('[AIService] 🔧 env.useBrowserCache:', env.useBrowserCache)
 
     this.notifyProgress({
       model: 'classifier',
@@ -266,6 +267,9 @@ class AIService {
     )
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)
     console.log(`[AIService] ✓ Classifier loaded in ${elapsed}s`)
+
+    // Check IndexedDB immediately after loading
+    this.checkIndexedDBAfterLoad('classifier')
   }
 
   /**
@@ -286,6 +290,7 @@ class AIService {
 
     const fromCache = this.isFromCache
     console.log(`[AIService] Loading embedder (from cache: ${fromCache})...`)
+    console.log('[AIService] 🔧 env.useBrowserCache:', env.useBrowserCache)
 
     this.notifyProgress({
       model: 'embedder',
@@ -303,6 +308,40 @@ class AIService {
     )
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)
     console.log(`[AIService] ✓ Embedder loaded in ${elapsed}s`)
+
+    // Check IndexedDB immediately after loading
+    this.checkIndexedDBAfterLoad('embedder')
+  }
+
+  /**
+   * Check IndexedDB state after loading a model
+   */
+  private checkIndexedDBAfterLoad(modelName: string): void {
+    try {
+      const dbOpen = indexedDB.open('transformers-cache')
+      dbOpen.onsuccess = () => {
+        const db = dbOpen.result
+        const storeCount = db.objectStoreNames.length
+        const stores = Array.from(db.objectStoreNames)
+        console.log(`[AIService] 📊 IndexedDB after ${modelName} load: ${storeCount} stores`)
+        if (stores.length > 0) {
+          console.log(`[AIService] ✅ Stores: ${stores.join(', ')}`)
+        } else {
+          console.warn(`[AIService] ⚠️ No stores found after loading ${modelName}!`)
+          console.warn(`[AIService] 💡 This means Transformers.js is NOT writing to IndexedDB`)
+          console.warn(`[AIService] 💡 Possible causes:`)
+          console.warn(`   1. Service worker is intercepting model file requests`)
+          console.warn(`   2. Transformers.js version has a bug`)
+          console.warn(`   3. Browser is blocking IndexedDB writes`)
+        }
+        db.close()
+      }
+      dbOpen.onerror = (event) => {
+        console.warn(`[AIService] ⚠️ Could not check IndexedDB after ${modelName} load:`, event)
+      }
+    } catch (error) {
+      console.warn(`[AIService] ⚠️ Error checking IndexedDB after ${modelName} load:`, error)
+    }
   }
 
   /**

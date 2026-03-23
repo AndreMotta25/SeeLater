@@ -34,6 +34,19 @@ export default withPWA({
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
   runtimeCaching: [
+    // IMPORTANT: DO NOT cache Hugging Face/Transformers.js model files
+    // Transformers.js needs to manage its own IndexedDB cache for offline functionality
+    {
+      urlPattern: /^https:\/\/huggingface\.co\/.*/i,
+      handler: "NetworkFirst",
+      options: {
+        cacheName: "huggingface-models",
+        expiration: {
+          maxEntries: 10,
+          maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+        },
+      },
+    },
     {
       urlPattern: /^https:\/\/img\.youtube\.com\/.*/i,
       handler: "CacheFirst",
