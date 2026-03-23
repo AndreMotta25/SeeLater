@@ -130,7 +130,7 @@ class AIService {
 
     this.classifier = await pipeline(
       'zero-shot-classification',
-      'Xenova/nli-deberta-v3-small',
+      'Xenova/nli-deberta-v3-xsmall',
       {
         progress_callback: this.createProgressCallback('classifier'),
       }
