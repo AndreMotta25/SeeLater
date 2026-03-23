@@ -146,22 +146,21 @@ class AIService {
   }
 
   /**
-   * Check if models are cached in IndexedDB
+   * Check if models are cached in Cache API (not IndexedDB!)
+   * Transformers.js uses the Cache API (caches), not IndexedDB
    */
   private async checkCache(): Promise<boolean> {
     if (this.cacheChecked) return this.isFromCache
 
     try {
-      // Transformers.js uses 'transformers-cache' as the default IndexedDB name
-      const cacheName = 'transformers-cache'
-      console.log(`[AIService] 🔍 Checking cache "${cacheName}"...`)
+      console.log('[AIService] 🔍 Checking Cache API for models...')
 
       // Check if persistent storage is granted
       if ('storage' in navigator && 'persisted' in navigator.storage) {
         const isPersistent = await navigator.storage.persisted()
         console.log('[AIService] 🔒 Persistent storage:', isPersistent ? 'GRANTED' : 'NOT GRANTED')
         if (!isPersistent) {
-          console.warn('[AIService] ⚠️ WARNING: Browser may clear IndexedDB on exit!')
+          console.warn('[AIService] ⚠️ WARNING: Browser may clear cache on exit!')
         }
       }
 
@@ -175,54 +174,46 @@ class AIService {
         })
       }
 
-      // List all IndexedDB databases
-      const databases = await indexedDB.databases()
-      console.log('[AIService] 🗄️ All IndexedDB databases:', databases.map(db => db.name))
+      // Transformers.js uses Cache API, NOT IndexedDB!
+      // Check if caches are available
+      if (!('caches' in self)) {
+        console.warn('[AIService] ⚠️ Cache API not available in this environment')
+        this.isFromCache = false
+        this.cacheChecked = true
+        return false
+      }
 
-      const dbOpen = indexedDB.open(cacheName)
+      // List all caches
+      const cacheNames = await caches.keys()
+      console.log('[AIService] 🗄️ All Cache API caches:', cacheNames)
 
-      const hasCache = await new Promise<boolean>((resolve) => {
-        dbOpen.onsuccess = () => {
-          const db = dbOpen.result
-          // Check if there are any stores with model data
-          const hasModels = db.objectStoreNames.length > 0
-          const stores = Array.from(db.objectStoreNames)
+      // Check for transformers cache
+      const transformersCacheNames = cacheNames.filter(name => name.includes('transformers') || name.includes('huggingface') || name.includes('xenova'))
+      console.log('[AIService] 📦 Transformers-related caches:', transformersCacheNames.length > 0 ? transformersCacheNames : '(none)')
 
-          // Log details of each store
-          if (hasModels) {
-            console.log(`[AIService] 📦 Cache found: ${hasModels ? 'YES' : 'NO'} | Stores: ${stores.join(', ')}`)
+      if (transformersCacheNames.length > 0) {
+        // Open each cache and count entries
+        for (const cacheName of transformersCacheNames) {
+          const cache = await caches.open(cacheName)
+          const keys = await cache.keys()
+          console.log(`[AIService]   - "${cacheName}": ${keys.length} entries`)
 
-            // Count records in each store
-            const transaction = db.transaction(stores, 'readonly')
-            stores.forEach(storeName => {
-              const objectStore = transaction.objectStore(storeName)
-              const countRequest = objectStore.count()
-              countRequest.onsuccess = () => {
-                console.log(`[AIService]   - "${storeName}": ${countRequest.result} records`)
-              }
-            })
-          } else {
-            console.log(`[AIService] 📦 Cache found: NO | Stores: (empty)`)
-            console.warn('[AIService] ⚠️ IndexedDB database exists but has no object stores!')
-            console.warn('[AIService] 💡 Possible causes:')
-            console.warn('   1. Browser is clearing site data on exit (check browser settings)')
-            console.warn('   2. Browser extension is clearing storage')
-            console.warn('   3. Privacy mode is blocking IndexedDB writes')
-            console.warn('   4. IndexedDB permission was denied')
+          // Log some sample URLs
+          if (keys.length > 0) {
+            const sampleUrls = keys.slice(0, 3).map(req => req.url.split('/').pop())
+            console.log(`[AIService]     Sample files: ${sampleUrls.join(', ')}`)
           }
-
-          db.close()
-          resolve(hasModels)
         }
-        dbOpen.onerror = (event) => {
-          console.warn('[AIService] ❌ No cache found (first time?)', event)
-          resolve(false)
-        }
-      })
 
-      this.isFromCache = hasCache
-      this.cacheChecked = true
-      return hasCache
+        this.isFromCache = true
+        this.cacheChecked = true
+        return true
+      } else {
+        console.log('[AIService] 📦 No transformers cache found (first time?)')
+        this.isFromCache = false
+        this.cacheChecked = true
+        return false
+      }
     } catch (error) {
       console.warn('[AIService] ❌ Cache check failed:', error)
       this.isFromCache = false
@@ -314,33 +305,33 @@ class AIService {
   }
 
   /**
-   * Check IndexedDB state after loading a model
+   * Check Cache API state after loading a model
    */
   private checkIndexedDBAfterLoad(modelName: string): void {
+    // Note: Transformers.js uses Cache API, not IndexedDB
     try {
-      const dbOpen = indexedDB.open('transformers-cache')
-      dbOpen.onsuccess = () => {
-        const db = dbOpen.result
-        const storeCount = db.objectStoreNames.length
-        const stores = Array.from(db.objectStoreNames)
-        console.log(`[AIService] 📊 IndexedDB after ${modelName} load: ${storeCount} stores`)
-        if (stores.length > 0) {
-          console.log(`[AIService] ✅ Stores: ${stores.join(', ')}`)
+      caches.keys().then(cacheNames => {
+        const transformersCacheNames = cacheNames.filter(name =>
+          name.includes('transformers') || name.includes('huggingface') || name.includes('xenova')
+        )
+
+        console.log(`[AIService] 📊 Cache API after ${modelName} load: ${transformersCacheNames.length} caches`)
+
+        if (transformersCacheNames.length > 0) {
+          console.log(`[AIService] ✅ Caches: ${transformersCacheNames.join(', ')}`)
         } else {
-          console.warn(`[AIService] ⚠️ No stores found after loading ${modelName}!`)
-          console.warn(`[AIService] 💡 This means Transformers.js is NOT writing to IndexedDB`)
-          console.warn(`[AIService] 💡 Possible causes:`)
-          console.warn(`   1. Service worker is intercepting model file requests`)
-          console.warn(`   2. Transformers.js version has a bug`)
-          console.warn(`   3. Browser is blocking IndexedDB writes`)
+          console.warn(`[AIService] ⚠️ No caches found after loading ${modelName}!`)
+          console.warn(`[AIService] 💡 Transformers.js should create caches automatically`)
+          console.warn(`[AIService] 💡 This could mean:`)
+          console.warn(`   1. Browser is clearing cache on exit`)
+          console.warn(`   2. Extension is clearing cache`)
+          console.warn(`   3. Cache API is disabled`)
         }
-        db.close()
-      }
-      dbOpen.onerror = (event) => {
-        console.warn(`[AIService] ⚠️ Could not check IndexedDB after ${modelName} load:`, event)
-      }
+      }).catch(err => {
+        console.warn(`[AIService] ⚠️ Could not check Cache API:`, err)
+      })
     } catch (error) {
-      console.warn(`[AIService] ⚠️ Error checking IndexedDB after ${modelName} load:`, error)
+      console.warn(`[AIService] ⚠️ Error checking Cache API:`, error)
     }
   }
 
@@ -430,29 +421,37 @@ class AIService {
         const elapsed = ((performance.now() - overallStartTime) / 1000).toFixed(1)
         console.log(`[AIService] ✅ All models loaded in ${elapsed}s!`)
 
-        // POST-LOAD VERIFICATION: Check if models were actually written to IndexedDB
-        console.log('[AIService] 🔍 Verifying IndexedDB write...')
+        // POST-LOAD VERIFICATION: Check if models were actually cached
+        console.log('[AIService] 🔍 Verifying Cache API...')
         try {
-          const dbOpen = indexedDB.open('transformers-cache')
-          dbOpen.onsuccess = () => {
-            const db = dbOpen.result
-            const storeCount = db.objectStoreNames.length
-            const stores = Array.from(db.objectStoreNames)
-            console.log(`[AIService] 📊 IndexedDB after load: ${storeCount} stores`)
-            if (storeCount === 0) {
-              console.error('[AIService] ❌ CRITICAL: Models loaded but NO IndexedDB stores created!')
-              console.error('[AIService] ❌ This means models will NOT persist between sessions!')
-              console.error('[AIService] 💡 Check:')
-              console.error('   - Browser settings: "Clear site data when you close all windows"')
-              console.error('   - Privacy extensions clearing storage')
-              console.error('   - IndexedDB permission denied')
-            } else {
-              console.log(`[AIService] ✅ Stores: ${stores.join(', ')}`)
+          const cacheNames = await caches.keys()
+          const transformersCacheNames = cacheNames.filter(name =>
+            name.includes('transformers') || name.includes('huggingface') || name.includes('xenova')
+          )
+
+          console.log(`[AIService] 📊 Cache API after load: ${transformersCacheNames.length} caches`)
+
+          if (transformersCacheNames.length === 0) {
+            console.error('[AIService] ❌ CRITICAL: Models loaded but NO Cache API caches created!')
+            console.error('[AIService] ❌ This means models will NOT persist between sessions!')
+            console.error('[AIService] 💡 Check:')
+            console.error('   - Browser settings: "Clear site data when you close all windows"')
+            console.error('   - Privacy extensions clearing cache')
+            console.error('   - Cache API permission denied')
+          } else {
+            console.log(`[AIService] ✅ Caches: ${transformersCacheNames.join(', ')}`)
+
+            // Count total entries
+            let totalEntries = 0
+            for (const cacheName of transformersCacheNames) {
+              const cache = await caches.open(cacheName)
+              const keys = await cache.keys()
+              totalEntries += keys.length
             }
-            db.close()
+            console.log(`[AIService] ✅ Total cached files: ${totalEntries}`)
           }
         } catch (err) {
-          console.warn('[AIService] ⚠️ Could not verify IndexedDB write:', err)
+          console.warn('[AIService] ⚠️ Could not verify Cache API:', err)
         }
       } catch (error) {
         console.error('[AIService] ❌ Failed to load models:', error)
