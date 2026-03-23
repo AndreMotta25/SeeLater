@@ -80,6 +80,7 @@ class AIService {
   private supportError: string | null = null
   private cacheChecked: boolean = false
   private isFromCache: boolean = false
+  private loadingPromise: Promise<void> | null = null
 
   /**
    * Register a callback for model loading progress
@@ -274,6 +275,18 @@ class AIService {
    * Load both models
    */
   async loadAll(): Promise<void> {
+    // If already loading, wait for the existing promise
+    if (this.loadingPromise) {
+      console.log('[AIService] ⏳ Already loading, waiting for existing promise...')
+      return this.loadingPromise
+    }
+
+    // If both models are already loaded, return immediately
+    if (this.isReady()) {
+      console.log('[AIService] ✓ Models already loaded, skipping...')
+      return
+    }
+
     // Check browser support first
     const support = this.checkSupport()
     if (!support.supported) {
@@ -286,42 +299,50 @@ class AIService {
     const overallStartTime = performance.now()
     console.log('[AIService] 🚀 Starting AI model loading...')
 
-    try {
-      // Check if models are cached (for better UX)
-      await this.checkCache()
+    // Create the loading promise
+    this.loadingPromise = (async () => {
+      try {
+        // Check if models are cached (for better UX)
+        await this.checkCache()
 
-      // Only load models that are enabled
-      const classifierDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false'
-      const embedderDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_EMBEDDER === 'false'
-      const tasks = []
+        // Only load models that are enabled
+        const classifierDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_CLASSIFIER === 'false'
+        const embedderDisabled = process.env.NEXT_PUBLIC_ENABLE_AI_EMBEDDER === 'false'
+        const tasks = []
 
-      if (!classifierDisabled) {
-        tasks.push(this.loadClassifier())
-      } else {
-        console.log('[AIService] ⏭️ Skipping classifier load (disabled)')
+        if (!classifierDisabled) {
+          tasks.push(this.loadClassifier())
+        } else {
+          console.log('[AIService] ⏭️ Skipping classifier load (disabled)')
+        }
+
+        if (!embedderDisabled) {
+          tasks.push(this.loadEmbedder())
+        } else {
+          console.log('[AIService] ⏭️ Skipping embedder load (disabled)')
+        }
+
+        if (tasks.length === 0) {
+          console.log('[AIService] ⏭️ All AI models disabled')
+          return
+        }
+
+        await Promise.all(tasks)
+
+        const elapsed = ((performance.now() - overallStartTime) / 1000).toFixed(1)
+        console.log(`[AIService] ✅ All models loaded in ${elapsed}s!`)
+      } catch (error) {
+        console.error('[AIService] ❌ Failed to load models:', error)
+        this.isSupported = false
+        this.supportError = error instanceof Error ? error.message : 'Erro ao carregar modelos'
+        // Don't throw - allow app to continue without AI
+      } finally {
+        // Clear the loading promise when done
+        this.loadingPromise = null
       }
+    })()
 
-      if (!embedderDisabled) {
-        tasks.push(this.loadEmbedder())
-      } else {
-        console.log('[AIService] ⏭️ Skipping embedder load (disabled)')
-      }
-
-      if (tasks.length === 0) {
-        console.log('[AIService] ⏭️ All AI models disabled')
-        return
-      }
-
-      await Promise.all(tasks)
-
-      const elapsed = ((performance.now() - overallStartTime) / 1000).toFixed(1)
-      console.log(`[AIService] ✅ All models loaded in ${elapsed}s!`)
-    } catch (error) {
-      console.error('[AIService] ❌ Failed to load models:', error)
-      this.isSupported = false
-      this.supportError = error instanceof Error ? error.message : 'Erro ao carregar modelos'
-      // Don't throw - allow app to continue without AI
-    }
+    return this.loadingPromise
   }
 
   /**
