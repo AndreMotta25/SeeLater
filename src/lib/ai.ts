@@ -119,7 +119,7 @@ class AIService {
       const prefix = `[${timestamp}] [${model.toUpperCase()}]`
 
       if (data.status === 'progress') {
-        console.log(`${prefix} Progress: ${data.progress}% - ${data.file || 'unknown'}`)
+        // No log para cada porcentagem - apenas atualiza UI
         this.notifyProgress({
           model,
           status: this.isFromCache ? 'loading' : 'downloading',

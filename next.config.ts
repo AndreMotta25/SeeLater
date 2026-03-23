@@ -32,7 +32,7 @@ export default withPWA({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: true, // TEMPORARILY DISABLED TO TEST INDEXEDDB CACHING
   runtimeCaching: [
     // IMPORTANT: DO NOT cache Hugging Face/Transformers.js model files
     // Transformers.js needs to manage its own IndexedDB cache for offline functionality
