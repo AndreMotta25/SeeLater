@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import withPWA from "next-pwa";
+import withPWAInit from "@ducanh2912/next-pwa";
 
 const nextConfig: NextConfig = {
   images: {
@@ -28,12 +28,15 @@ const nextConfig: NextConfig = {
   // Transformers.js will work in single-threaded mode on Safari
 };
 
-export default withPWA({
+const withPWA = withPWAInit({
   dest: "public",
-  register: true,
-  skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
-  runtimeCaching: [
+  // Fallback offline para páginas não cacheadas
+  fallbacks: {
+    document: "/~offline",
+  },
+  workboxOptions: {
+    runtimeCaching: [
     // Cache static assets (JS, CSS, fonts) with StaleWhileRevalidate
     {
       urlPattern: /\.(?:js|css|woff|woff2|ttf|otf)$/i,
@@ -106,4 +109,5 @@ export default withPWA({
       },
     },
   ],
+  },
 })(nextConfig);
