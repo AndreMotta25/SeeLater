@@ -1,12 +1,9 @@
 'use client'
 
-import Link from 'next/link'
-
 export default function OfflinePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 flex items-center justify-center px-4">
       <div className="max-w-md w-full text-center">
-        {/* Icon */}
         <div className="mb-6">
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-white/10 backdrop-blur-sm">
             <svg
@@ -25,17 +22,14 @@ export default function OfflinePage() {
           </div>
         </div>
 
-        {/* Title */}
         <h1 className="text-3xl font-bold text-white mb-2">
           Você está offline
         </h1>
 
-        {/* Message */}
         <p className="text-slate-300 mb-8">
           Verifique sua conexão com a internet para acessar o Depois.
         </p>
 
-        {/* Info box */}
         <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 mb-8 border border-white/10">
           <p className="text-sm text-slate-300 text-left">
             <span className="text-2xl mr-2">💡</span>
@@ -44,7 +38,6 @@ export default function OfflinePage() {
           </p>
         </div>
 
-        {/* Action buttons */}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={() => window.location.reload()}
@@ -52,25 +45,20 @@ export default function OfflinePage() {
           >
             Tentar novamente
           </button>
-          <Link
+          <a
             href="/"
             className="min-h-[44px] px-6 py-3 bg-white/10 text-white rounded-lg font-medium hover:bg-white/20 transition-colors flex items-center justify-center"
           >
             Ir para início
-          </Link>
+          </a>
         </div>
-
-        {/* Script to reload when online */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.addEventListener('online', () => {
-                window.location.reload();
-              });
-            `,
-          }}
-        />
       </div>
+
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `window.addEventListener('online', () => window.location.reload());`,
+        }}
+      />
     </div>
   )
 }
