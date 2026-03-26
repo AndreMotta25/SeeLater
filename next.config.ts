@@ -33,7 +33,7 @@ const withPWA = withPWAInit({
   disable: process.env.NODE_ENV === "development",
   // Fallback offline para páginas não cacheadas
   fallbacks: {
-    document: "/~offline",
+    document: "/offline",
   },
   workboxOptions: {
     runtimeCaching: [
