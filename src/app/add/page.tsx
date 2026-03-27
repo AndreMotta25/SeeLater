@@ -2,14 +2,17 @@
 
 import { useItems } from '@/hooks/use-items'
 import { AddItemModal } from '@/components/mobile'
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 
-export default function AddPage() {
+function AddPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { enriching, addItem, enrichUrl, error } = useItems()
 
-  // Close modal and redirect to home
+  // Get shared URL from query params (Share Target API)
+  const sharedUrl = searchParams.get('url') || searchParams.get('text') || ''
+
   function handleClose() {
     router.push('/')
   }
@@ -22,6 +25,15 @@ export default function AddPage() {
       addItem={addItem}
       enrichUrl={enrichUrl}
       error={error}
+      initialUrl={sharedUrl}
     />
+  )
+}
+
+export default function AddPage() {
+  return (
+    <Suspense>
+      <AddPageContent />
+    </Suspense>
   )
 }

@@ -11,6 +11,7 @@ interface AddItemModalProps {
   addItem: (item: EnrichedItem) => Promise<any>
   enrichUrl: (url: string) => Promise<EnrichedItem | null>
   error: string | null
+  initialUrl?: string
 }
 
 export function AddItemModal({
@@ -19,7 +20,8 @@ export function AddItemModal({
   enriching,
   addItem,
   enrichUrl,
-  error
+  error,
+  initialUrl = ''
 }: AddItemModalProps) {
   const router = useRouter()
   const [url, setUrl] = useState('')
@@ -27,14 +29,23 @@ export function AddItemModal({
   const [loading, setLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  // Reset form when modal opens/closes
+  // Reset form when modal opens/closes, and auto-preview shared URLs
   useEffect(() => {
     if (!isOpen) {
       setUrl('')
       setPreview(null)
       setFormError(null)
+      return
     }
-  }, [isOpen])
+
+    // If an initial URL was provided (Share Target), set and auto-preview
+    if (initialUrl) {
+      setUrl(initialUrl)
+      enrichUrl(initialUrl).then((result) => {
+        if (result) setPreview(result)
+      }).catch(() => {})
+    }
+  }, [isOpen, initialUrl])
 
   // Close on escape key
   useEffect(() => {
