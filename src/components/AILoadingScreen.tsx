@@ -15,6 +15,8 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
   })
   const [isComplete, setIsComplete] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fromCache, setFromCache] = useState(false)
+  const [persistentStorage, setPersistentStorage] = useState<boolean | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -44,6 +46,20 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
       })
 
       try {
+        // Check if loading from cache BEFORE loading starts
+        const isFromCache = aiService.isLoadingFromCache()
+        if (mounted) {
+          setFromCache(isFromCache)
+        }
+
+        // Check persistent storage permission
+        if ('storage' in navigator && 'persisted' in navigator.storage) {
+          const isPersistent = await navigator.storage.persisted()
+          if (mounted) {
+            setPersistentStorage(isPersistent)
+          }
+        }
+
         // Load all models
         await aiService.loadAll()
 
@@ -102,10 +118,12 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
 
   function getStatusText(update: AIProgress): string {
     if (update.status === 'downloading') {
-      return `Baixando ${update.file ? update.file.split('/').pop() : 'arquivo'}...`
+      return fromCache
+        ? `Carregando do cache ${update.file ? update.file.split('/').pop() : ''}...`
+        : `Baixando ${update.file ? update.file.split('/').pop() : 'arquivo'}...`
     }
     if (update.status === 'loading') {
-      return 'Carregando modelo...'
+      return fromCache ? 'Carregando do cache...' : 'Carregando modelo...'
     }
     if (update.status === 'ready') {
       return 'Pronto!'
@@ -169,7 +187,7 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
             Depois
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Preparando sua IA pessoal...
+            {fromCache ? 'Carregando IA do cache...' : 'Preparando sua IA pessoal...'}
           </p>
         </div>
 
@@ -201,23 +219,45 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {isComplete
               ? '✓ IA pronta!'
-              : overallProgress < 25
-                ? 'Isso acontece só na primeira vez'
-                : overallProgress < 50
-                  ? 'Baixando modelos (~108MB)...'
-                  : overallProgress < 75
-                    ? 'Quase pronto...'
-                    : 'Finalizando...'}
+              : fromCache
+                ? overallProgress < 50
+                  ? 'Carregando do cache...'
+                  : 'Quase pronto...'
+                : overallProgress < 25
+                  ? 'Isso acontece só na primeira vez'
+                  : overallProgress < 50
+                    ? 'Baixando modelos (~108MB)...'
+                    : overallProgress < 75
+                      ? 'Quase pronto...'
+                      : 'Finalizando...'}
           </p>
         </div>
 
         {/* Info Box */}
         <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
           <p className="text-xs text-blue-800 dark:text-blue-300 text-center">
-            <span className="font-medium">💡 Privacidade total:</span> A IA roda
-            100% no seu navegador. Nenhum dado sai do seu dispositivo.
+            {fromCache ? (
+              <span className="font-medium">✨ Funciona offline!</span>
+            ) : (
+              <span className="font-medium">💡 Privacidade total:</span>
+            )}{' '}
+            {fromCache
+              ? 'Os modelos estão cacheados no seu dispositivo. A IA funciona sem internet.'
+              : 'A IA roda 100% no seu navegador. Nenhum dado sai do seu dispositivo.'}
           </p>
         </div>
+
+        {/* Persistent Storage Warning */}
+        {!fromCache && persistentStorage === false && (
+          <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+            <p className="text-sm text-orange-800 dark:text-orange-300 text-center">
+              <span className="font-medium">⚠️ Armazenamento não persistente:</span>
+            </p>
+            <p className="text-xs text-orange-700 dark:text-orange-400 text-center mt-2">
+              O navegador pode apagar os modelos de IA. Para usar offline, verifique as configurações de privacidade do navegador e desative "Limpar dados ao sair".
+            </p>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (

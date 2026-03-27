@@ -1,26 +1,26 @@
 import type { NextConfig } from "next";
-import withPWA from "next-pwa";
+import withSerwistInit from "@serwist/next";
 
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'img.youtube.com',
-        pathname: '/vi/**',
+        protocol: "https",
+        hostname: "img.youtube.com",
+        pathname: "/vi/**",
       },
       {
-        protocol: 'https',
-        hostname: 'www.google.com',
-        pathname: '/s2/favicons/**',
+        protocol: "https",
+        hostname: "www.google.com",
+        pathname: "/s2/favicons/**",
       },
       {
-        protocol: 'https',
-        hostname: '**', // Permite qualquer domínio https para thumbnails OG
+        protocol: "https",
+        hostname: "**",
       },
       {
-        protocol: 'http',
-        hostname: '**', // Permite qualquer domínio http (fallback)
+        protocol: "http",
+        hostname: "**",
       },
     ],
   },
@@ -28,33 +28,13 @@ const nextConfig: NextConfig = {
   // Transformers.js will work in single-threaded mode on Safari
 };
 
-export default withPWA({
-  dest: "public",
-  register: true,
-  skipWaiting: true,
+const withSerwist = withSerwistInit({
+  swSrc: "src/sw.ts",
+  swDest: "public/sw.js",
   disable: process.env.NODE_ENV === "development",
-  runtimeCaching: [
-    {
-      urlPattern: /^https:\/\/img\.youtube\.com\/.*/i,
-      handler: "CacheFirst",
-      options: {
-        cacheName: "youtube-thumbnails",
-        expiration: {
-          maxEntries: 100,
-          maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
-        },
-      },
-    },
-    {
-      urlPattern: /^https:\/\/www\.google\.com\/s2\/favicons\/.*/i,
-      handler: "CacheFirst",
-      options: {
-        cacheName: "favicons",
-        expiration: {
-          maxEntries: 200,
-          maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
-        },
-      },
-    },
+  additionalPrecacheEntries: [
+    { url: "/offline", revision: Date.now().toString() },
   ],
 })(nextConfig);
+
+export default withSerwist;
