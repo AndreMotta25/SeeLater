@@ -30,12 +30,11 @@ export class ItemsRepository {
   }
 
   /**
-   * Verifica se um item já existe pela URL normalizada
+   * Busca um item existente pela URL normalizada
    */
-  static async existsByUrl(url: string): Promise<boolean> {
+  static async findByUrl(url: string): Promise<Item | undefined> {
     const normalizedUrl = this.normalizeUrl(url)
-    const count = await db.items.where('url').equals(normalizedUrl).count()
-    return count > 0
+    return db.items.where('url').equals(normalizedUrl).first()
   }
 
   /**

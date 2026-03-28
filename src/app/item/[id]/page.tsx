@@ -73,14 +73,16 @@ export default function ItemDetailPage() {
   }
 
   return (
-    <>
-      <ItemDetailHeader onShare={handleShare} />
-      <ItemDetail
-        item={item}
-        onMarkAsViewed={markAsViewed}
-        onDelete={deleteItem}
-        onMarkAsUnviewed={handleMarkAsUnviewed}
-      />
-    </>
+    <div className="min-h-screen bg-[#0F0F1A]">
+      <div className="max-w-md mx-auto min-h-screen bg-[#0F0F1A]">
+        <ItemDetailHeader onShare={handleShare} />
+        <ItemDetail
+          item={item}
+          onMarkAsViewed={markAsViewed}
+          onDelete={deleteItem}
+          onMarkAsUnviewed={handleMarkAsUnviewed}
+        />
+      </div>
+    </div>
   )
 }

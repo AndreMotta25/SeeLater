@@ -21,6 +21,7 @@ export function useItems() {
   const [loading, setLoading] = useState(true)
   const [enriching, setEnriching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [duplicateItem, setDuplicateItem] = useState<Item | null>(null)
 
   // Carrega os itens ao montar do componente
   useEffect(() => {
@@ -72,11 +73,13 @@ export function useItems() {
   async function addItem(enrichedData: EnrichedItem): Promise<Item | null> {
     try {
       setError(null)
+      setDuplicateItem(null)
 
       // Verifica se já existe
-      const exists = await ItemsRepository.existsByUrl(enrichedData.url)
-      if (exists) {
-        setError('This URL is already saved')
+      const existing = await ItemsRepository.findByUrl(enrichedData.url)
+      if (existing) {
+        setDuplicateItem(existing)
+        setError('Este link já foi salvo')
         return null
       }
 
@@ -270,6 +273,7 @@ export function useItems() {
     loading,
     enriching,
     error,
+    duplicateItem,
     enrichUrl,
     addItem,
     markAsViewed,
