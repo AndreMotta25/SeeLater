@@ -24,6 +24,13 @@
   --radius: 1rem; /* 16px border radius for cards */
 }
 
+/* Restore pointer cursor on interactive elements (Tailwind v4 reset removes it) */
+@layer base {
+  button, a, [role="button"], input[type="checkbox"], input[type="radio"], label[for], select, summary {
+    cursor: pointer;
+  }
+}
+
 /* Hide scrollbar for horizontal scrolling */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
