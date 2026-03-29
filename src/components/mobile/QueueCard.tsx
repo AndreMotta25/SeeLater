@@ -1,6 +1,7 @@
 'use client'
 
 import { type Item } from '@/types'
+import { CATEGORIES } from '@/lib/ai'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -10,6 +11,7 @@ interface QueueCardProps {
   item: Item
   onView: (id: string) => void
   onDelete: (id: string) => void
+  onUpdateCategory?: (id: string, category: string) => void
   onResetDismissal?: (id: string) => void
 }
 
@@ -36,12 +38,13 @@ function getRemainingTime(dismissedAt: number | null): string | null {
   return `${minutes}m`
 }
 
-export function QueueCard({ item, onView, onDelete, onResetDismissal }: QueueCardProps) {
+export function QueueCard({ item, onView, onDelete, onUpdateCategory, onResetDismissal }: QueueCardProps) {
   const router = useRouter()
   const [remainingTime, setRemainingTime] = useState<string | null>(
     item.suggestionDismissedAt ? getRemainingTime(item.suggestionDismissedAt) : null
   )
   const [showMenu, setShowMenu] = useState(false)
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -75,6 +78,7 @@ export function QueueCard({ item, onView, onDelete, onResetDismissal }: QueueCar
 
   function handleMenuAction(action: () => void) {
     setShowMenu(false)
+    setShowCategoryPicker(false)
     action()
   }
 
@@ -176,26 +180,77 @@ export function QueueCard({ item, onView, onDelete, onResetDismissal }: QueueCar
           {/* Dropdown Menu */}
           {showMenu && (
             <div className="absolute right-0 top-full mt-1 w-48 bg-[#1A1A2E] border border-[#2A2A3E] rounded-lg shadow-xl z-50 overflow-hidden">
-              {onResetDismissal && item.suggestionDismissedAt && (
-                <button
-                  onClick={() => handleMenuAction(() => onResetDismissal(item.id))}
-                  className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3 border-b border-[#2A2A3E]"
-                >
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Resetar sugestão</span>
-                </button>
+              {showCategoryPicker ? (
+                <>
+                  {/* Category picker header */}
+                  <div className="px-4 py-2 border-b border-[#2A2A3E] flex items-center gap-2">
+                    <button
+                      onClick={() => setShowCategoryPicker(false)}
+                      className="min-h-[32px] min-w-[32px] flex items-center justify-center text-[#94A3B8] hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <span className="text-sm font-medium text-white">Categoria</span>
+                  </div>
+                  {/* Category list */}
+                  <div className="max-h-64 overflow-y-auto">
+                    {CATEGORIES.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => handleMenuAction(() => onUpdateCategory?.(item.id, category))}
+                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-2 ${
+                          item.category === category
+                            ? 'text-[#6366F1] bg-[#6366F1]/10'
+                            : 'text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white'
+                        }`}
+                      >
+                        {item.category === category && (
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        <span>{category}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {onUpdateCategory && (
+                    <button
+                      onClick={() => setShowCategoryPicker(true)}
+                      className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3 border-b border-[#2A2A3E]"
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                      <span>Alterar categoria</span>
+                    </button>
+                  )}
+                  {onResetDismissal && item.suggestionDismissedAt && (
+                    <button
+                      onClick={() => handleMenuAction(() => onResetDismissal(item.id))}
+                      className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3 border-b border-[#2A2A3E]"
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Resetar sugestão</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleMenuAction(() => onDelete(item.id))}
+                    className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-[#2A2A3E] hover:text-red-300 transition-colors flex items-center gap-3"
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Excluir</span>
+                  </button>
+                </>
               )}
-              <button
-                onClick={() => handleMenuAction(() => onDelete(item.id))}
-                className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-[#2A2A3E] hover:text-red-300 transition-colors flex items-center gap-3"
-              >
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                <span>Excluir</span>
-              </button>
             </div>
           )}
         </div>
@@ -208,12 +263,13 @@ interface QueueSectionProps {
   items: Item[]
   onView: (id: string) => void
   onDelete: (id: string) => void
+  onUpdateCategory?: (id: string, category: string) => void
   onResetDismissal?: (id: string) => void
 }
 
 const ITEMS_PER_PAGE = 10
 
-export function QueueSection({ items, onView, onDelete, onResetDismissal }: QueueSectionProps) {
+export function QueueSection({ items, onView, onDelete, onUpdateCategory, onResetDismissal }: QueueSectionProps) {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const observerTarget = useRef<HTMLDivElement>(null)
 
@@ -276,6 +332,7 @@ export function QueueSection({ items, onView, onDelete, onResetDismissal }: Queu
             item={item}
             onView={onView}
             onDelete={onDelete}
+            onUpdateCategory={onUpdateCategory}
             onResetDismissal={onResetDismissal}
           />
         ))}

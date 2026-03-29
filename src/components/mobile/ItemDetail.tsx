@@ -84,7 +84,7 @@ export function ItemDetail({
       {/* Content */}
       <div className="px-4 pt-6">
         {/* Title */}
-        <h1 className="text-2xl font-bold text-[#EF4444] mb-3 font-heading">
+        <h1 className="text-2xl font-bold text-white mb-3 font-heading">
           {item.title}
         </h1>
 

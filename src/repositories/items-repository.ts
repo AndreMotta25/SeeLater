@@ -149,6 +149,13 @@ export class ItemsRepository {
   }
 
   /**
+   * Atualiza a categoria de um item
+   */
+  static async updateCategory(id: string, category: string): Promise<void> {
+    await db.items.update(id, { category, updatedAt: Date.now() })
+  }
+
+  /**
    * Deleta um item
    */
   static async delete(id: string): Promise<void> {

@@ -21,6 +21,7 @@ export default function HomePage() {
     recentlyViewed,
     markAsViewed,
     deleteItem,
+    updateCategory,
     getSuggestion,
     dismissSuggestion,
     resetSuggestionDismissal,
@@ -141,6 +142,7 @@ export default function HomePage() {
           items={unviewed}
           onView={handleViewItem}
           onDelete={deleteItem}
+          onUpdateCategory={updateCategory}
           onResetDismissal={resetSuggestionDismissal}
         />
 

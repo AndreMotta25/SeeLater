@@ -154,6 +154,17 @@ export function useItems() {
     }
   }
 
+  async function updateCategory(id: string, category: string): Promise<void> {
+    try {
+      await ItemsRepository.updateCategory(id, category)
+      setUnviewed(prev =>
+        prev.map(item => item.id === id ? { ...item, category } : item)
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update category')
+    }
+  }
+
   async function deleteItem(id: string): Promise<void> {
     try {
       await ItemsRepository.delete(id)
@@ -279,6 +290,7 @@ export function useItems() {
     markAsViewed,
     markAsUnviewed,
     deleteItem,
+    updateCategory,
     getSuggestion,
     dismissSuggestion,
     resetSuggestionDismissal,
