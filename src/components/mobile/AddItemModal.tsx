@@ -114,6 +114,9 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
     setSaving(true)
     setError(null)
 
+    // Yield to browser so the loading overlay paints before heavy work starts
+    await new Promise<void>((r) => requestAnimationFrame(() => r()))
+
     try {
       const { ItemsRepository } = await import('@/repositories/items-repository')
       const { aiService } = await import('@/lib/ai')
@@ -165,6 +168,14 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
 
   return (
     <div className="min-h-screen bg-[#121826] pb-20">
+      {/* Full-screen saving overlay */}
+      {saving && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#121826]/90 backdrop-blur-sm">
+          <span className="h-12 w-12 animate-spin rounded-full border-4 border-[#6366F1] border-t-transparent" />
+          <p className="mt-4 text-sm font-semibold text-white">Salvando link...</p>
+        </div>
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-50 bg-[#121826] border-b border-[#1E2532]">
         <div className="flex items-center gap-3 px-4 py-3">
@@ -220,14 +231,7 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
         {enrichedData && !enriching && (
           <div className="mb-4">
             <p className="text-xs font-semibold text-[#6366F1] uppercase tracking-wider mb-2">Prévia do Conteúdo</p>
-            <div className="bg-white rounded-xl overflow-hidden relative">
-              {/* Saving overlay */}
-              {saving && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-xl gap-3">
-                  <span className="h-10 w-10 animate-spin rounded-full border-3 border-[#6366F1] border-t-transparent" />
-                  <p className="text-sm font-semibold text-gray-700">Salvando link...</p>
-                </div>
-              )}
+            <div className="bg-white rounded-xl overflow-hidden">
               {/* Thumbnail */}
               {enrichedData.thumbnail && (
                 <div className="relative">
