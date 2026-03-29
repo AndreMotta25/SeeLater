@@ -220,7 +220,14 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
         {enrichedData && !enriching && (
           <div className="mb-4">
             <p className="text-xs font-semibold text-[#6366F1] uppercase tracking-wider mb-2">Prévia do Conteúdo</p>
-            <div className="bg-white rounded-xl overflow-hidden">
+            <div className="bg-white rounded-xl overflow-hidden relative">
+              {/* Saving overlay */}
+              {saving && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-xl gap-3">
+                  <span className="h-10 w-10 animate-spin rounded-full border-3 border-[#6366F1] border-t-transparent" />
+                  <p className="text-sm font-semibold text-gray-700">Salvando link...</p>
+                </div>
+              )}
               {/* Thumbnail */}
               {enrichedData.thumbnail && (
                 <div className="relative">
@@ -307,8 +314,11 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
           <button
             onClick={handleSave}
             disabled={!enrichedData || saving || !!duplicateItem}
-            className="flex-1 min-h-[48px] bg-[#6366F1] hover:bg-[#5558E6] disabled:bg-[#6366F1]/40 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors"
+            className="flex-1 min-h-[48px] bg-[#6366F1] hover:bg-[#5558E6] disabled:bg-[#6366F1]/40 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
           >
+            {saving && (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            )}
             {saving ? 'Salvando...' : 'Salvar Link'}
           </button>
         </div>
