@@ -29,7 +29,7 @@ export function BottomNavigation() {
       )
     },
     {
-      href: '/fila',
+      href: '/explore',
       label: 'Fila',
       active: pathname === '/fila',
       icon: (
