@@ -4,7 +4,7 @@ import { type Item } from '@/types'
 import { CATEGORIES } from '@/lib/ai'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence, useMotionValue } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 
 const COOLDOWN_MS = 2 * 24 * 60 * 60 * 1000 // 2 days
 
@@ -202,7 +202,7 @@ export function QueueCard({ item, onView, onDelete, onUpdateCategory, onResetDis
 
   function closeSwipe() {
     setSwipeOpen(false)
-    x.set(0)
+    animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
   }
 
   function handleMenuAction(action: () => void) {
@@ -231,10 +231,10 @@ export function QueueCard({ item, onView, onDelete, onUpdateCategory, onResetDis
 
     if (offset < -SNAP_THRESHOLD) {
       setSwipeOpen(true)
-      x.set(-ACTION_WIDTH)
+      animate(x, -ACTION_WIDTH, { type: 'spring', stiffness: 300, damping: 30 })
     } else {
       setSwipeOpen(false)
-      x.set(0)
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
     }
 
     // Keep isDragging true briefly so the onClick handler ignores it
