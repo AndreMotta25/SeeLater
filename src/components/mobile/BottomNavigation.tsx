@@ -2,6 +2,17 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
+
+// Item 24: Bar entrance from bottom
+const navEntrance = {
+  initial: { opacity: 0, y: 20 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: 'easeOut' as const },
+  },
+}
 
 export function BottomNavigation() {
   const pathname = usePathname()
@@ -50,7 +61,12 @@ export function BottomNavigation() {
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-[#0F0F1A]/95 backdrop-blur-sm border-t border-[#1A1A2E] z-50">
+    <motion.nav
+      variants={navEntrance}
+      initial="initial"
+      animate="animate"
+      className="fixed bottom-0 left-0 right-0 bg-[#0F0F1A]/95 backdrop-blur-sm border-t border-[#1A1A2E] z-50"
+    >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
         {navItems.map((item) => (
           <Link
@@ -63,15 +79,21 @@ export function BottomNavigation() {
               ${item.active ? 'text-[#6366F1]' : 'text-[#94A3B8] hover:text-white'}
             `}
           >
-            <div className="w-6 h-6 mb-1">
-              {item.icon}
-            </div>
-            <span className="text-[10px] font-medium">
-              {item.label}
-            </span>
+            {/* Item 23: Tap feedback with scale compression */}
+            <motion.div
+              whileTap={{ scale: 0.9 }}
+              className="flex flex-col items-center justify-center"
+            >
+              <div className="w-6 h-6 mb-1">
+                {item.icon}
+              </div>
+              <span className="text-[10px] font-medium">
+                {item.label}
+              </span>
+            </motion.div>
           </Link>
         ))}
       </div>
-    </nav>
+    </motion.nav>
   )
 }
