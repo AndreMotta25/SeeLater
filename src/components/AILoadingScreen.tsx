@@ -1,7 +1,29 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { aiService, type AIProgress } from '@/lib/ai'
+
+const loadingExit = {
+  initial: { opacity: 1 },
+  exit: { opacity: 0 },
+}
+
+const loadingExitTransition = {
+  duration: 0.4,
+  ease: 'easeInOut' as const,
+}
+
+const statusTextVariants = {
+  initial: { opacity: 0, y: 4 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -4 },
+}
+
+const statusTextTransition = {
+  duration: 0.2,
+  ease: 'easeOut' as const,
+}
 
 interface ModelProgress {
   classifier: { progress: number; status: string; file?: string }
@@ -140,14 +162,16 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
     progress: number
     status: string
   }) {
+    const progressPercent = Math.floor(progress)
+
     return (
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {label}
           </span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {Math.floor(progress)}%
+          <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+            {progressPercent}%
           </span>
         </div>
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-1">
@@ -156,15 +180,33 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
             style={{ width: `${Math.min(progress, 100)}%` }}
           />
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 h-4">
-          {status}
-        </p>
+        <div className="h-4 overflow-hidden">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={status}
+              className="text-xs text-gray-500 dark:text-gray-400"
+              variants={statusTextVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={statusTextTransition}
+            >
+              {status}
+            </motion.p>
+          </AnimatePresence>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 px-4">
+    <motion.div
+      className="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 px-4"
+      variants={loadingExit}
+      initial="initial"
+      exit="exit"
+      transition={loadingExitTransition}
+    >
       <div className="max-w-md w-full">
         {/* Logo/Icon */}
         <div className="text-center mb-8">
@@ -271,6 +313,6 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

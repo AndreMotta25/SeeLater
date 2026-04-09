@@ -10,11 +10,21 @@ import {
   QueueSection
 } from '@/components/mobile'
 import { useState, useEffect } from 'react'
-import { AnimatePresence } from 'framer-motion' // keep for future use
+import { AnimatePresence, motion } from 'framer-motion'
 import { aiService } from '@/lib/ai'
 import type { Item } from '@/types'
 
 const AI_LOADED_KEY = 'depois_ai_loaded'
+
+const pageEnter = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+}
+
+const pageEnterTransition = {
+  duration: 0.4,
+  ease: 'easeOut' as const,
+}
 
 export default function HomePage() {
   const {
@@ -116,47 +126,55 @@ export default function HomePage() {
     await loadSuggestion()
   }
 
-  // Show AI loading screen on first visit
-  if (!aiLoaded) {
-    return <AILoadingScreen onComplete={handleAILoaded} />
-  }
-
   return (
-    <div className="min-h-screen bg-[#0F0F1A] pb-20">
-      <MobileHeader />
+    <AnimatePresence mode="wait">
+      {!aiLoaded ? (
+        <AILoadingScreen key="loading" onComplete={handleAILoaded} />
+      ) : (
+        <motion.div
+          key="home"
+          className="min-h-screen bg-[#0F0F1A] pb-20"
+          variants={pageEnter}
+          initial="initial"
+          animate="animate"
+          transition={pageEnterTransition}
+        >
+          <MobileHeader />
 
-      <main className="max-w-lg mx-auto">
-        {/* AI Suggestion Section */}
-        {suggestion ? (
-          <AIRecommendationCard
-            key={suggestion.id}
-            item={suggestion}
-            onView={handleViewSuggestion}
-            onDismiss={handleDismissSuggestion}
-            loading={suggestionLoading}
-          />
-        ) : !suggestionLoading && recentlyViewed.length > 0 ? (
-          <AIRecommendationEmpty />
-        ) : null}
+          <main className="max-w-lg mx-auto">
+            {/* AI Suggestion Section */}
+            {suggestion ? (
+              <AIRecommendationCard
+                key={suggestion.id}
+                item={suggestion}
+                onView={handleViewSuggestion}
+                onDismiss={handleDismissSuggestion}
+                loading={suggestionLoading}
+              />
+            ) : !suggestionLoading && recentlyViewed.length > 0 ? (
+              <AIRecommendationEmpty />
+            ) : null}
 
-        {/* Queue Section */}
-        <QueueSection
-          items={unviewed}
-          onView={handleViewItem}
-          onDelete={deleteItem}
-          onUpdateCategory={updateCategory}
-          onResetDismissal={resetSuggestionDismissal}
-        />
+            {/* Queue Section */}
+            <QueueSection
+              items={unviewed}
+              onView={handleViewItem}
+              onDelete={deleteItem}
+              onUpdateCategory={updateCategory}
+              onResetDismissal={resetSuggestionDismissal}
+            />
 
-        {/* Error Message */}
-        {error && (
-          <div className="mx-4 mb-4 p-4 bg-red-900/20 border border-red-800 rounded-xl">
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
-        )}
-      </main>
+            {/* Error Message */}
+            {error && (
+              <div className="mx-4 mb-4 p-4 bg-red-900/20 border border-red-800 rounded-xl">
+                <p className="text-sm text-red-400">{error}</p>
+              </div>
+            )}
+          </main>
 
-      <BottomNavigation />
-    </div>
+          <BottomNavigation />
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
