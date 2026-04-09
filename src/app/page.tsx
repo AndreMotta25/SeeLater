@@ -10,6 +10,7 @@ import {
   QueueSection
 } from '@/components/mobile'
 import { useState, useEffect } from 'react'
+import { AnimatePresence } from 'framer-motion' // keep for future use
 import { aiService } from '@/lib/ai'
 import type { Item } from '@/types'
 
@@ -128,6 +129,7 @@ export default function HomePage() {
         {/* AI Suggestion Section */}
         {suggestion ? (
           <AIRecommendationCard
+            key={suggestion.id}
             item={suggestion}
             onView={handleViewSuggestion}
             onDismiss={handleDismissSuggestion}
