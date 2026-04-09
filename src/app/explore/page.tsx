@@ -3,8 +3,9 @@
 import { useItems } from '@/hooks/use-items'
 import { MobileHeader, BottomNavigation } from '@/components/mobile'
 import { CATEGORIES } from '@/lib/ai'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion, useMotionValue, animate } from 'framer-motion'
 import type { Item } from '@/types'
 
 const CATEGORY_COLORS: Record<string, { text: string; bg: string; border: string }> = {
@@ -27,6 +28,9 @@ const CATEGORY_COLORS: Record<string, { text: string; bg: string; border: string
 }
 
 const DEFAULT_COLOR = { text: 'text-gray-400', bg: 'bg-gray-400/10', border: 'border-gray-400/20' }
+
+const ACTION_WIDTH = 160
+const SNAP_THRESHOLD = 60
 
 function getCategoryColor(category: string | null) {
   if (!category) return DEFAULT_COLOR
@@ -61,6 +65,12 @@ function FilaCard({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
+  // Swipe state
+  const x = useMotionValue(0)
+  const [swipeOpen, setSwipeOpen] = useState(false)
+  const isDragging = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!showMenu) return
 
@@ -75,133 +85,216 @@ function FilaCard({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showMenu])
 
+  // Close swipe when clicking outside
+  useEffect(() => {
+    if (!swipeOpen) return
+
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        closeSwipe()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside as unknown as EventListener)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside as unknown as EventListener)
+    }
+  }, [swipeOpen])
+
+  function closeSwipe() {
+    setSwipeOpen(false)
+    animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
+  }
+
   function handleMenuAction(action: () => void) {
     setShowMenu(false)
     setShowCategoryPicker(false)
     action()
   }
 
-  return (
-    <div className="bg-[#1A1A2E] rounded-xl border border-[#2A2A3E] relative">
-      <div
-        onClick={() => router.push(`/item/${item.id}`)}
-        className="flex items-start gap-3 p-3 cursor-pointer hover:bg-[#2A2A3E] transition-colors rounded-xl"
-      >
-        {/* Thumbnail */}
-        <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-[#0F0F1A]">
-          {item.thumbnail ? (
-            <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-[#94A3B8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-          )}
-        </div>
+  function handleSwipeAction(action: () => void) {
+    closeSwipe()
+    action()
+  }
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {/* Category Badge */}
-          <div className="flex items-center gap-2 mb-1">
-            {item.category && (
-              <span className={`text-[10px] font-semibold ${colors.text} truncate`}>
-                {item.category.toUpperCase()}
-              </span>
+  function handleClick() {
+    if (isDragging.current) return
+    if (swipeOpen) {
+      closeSwipe()
+      return
+    }
+    router.push(`/item/${item.id}`)
+  }
+
+  const handleDragEnd = useCallback((_event: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number; y: number } }) => {
+    const offset = info.offset.x
+
+    if (offset < -SNAP_THRESHOLD) {
+      setSwipeOpen(true)
+      animate(x, -ACTION_WIDTH, { type: 'spring', stiffness: 300, damping: 30 })
+    } else {
+      setSwipeOpen(false)
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
+    }
+
+    setTimeout(() => {
+      isDragging.current = false
+    }, 50)
+  }, [x])
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-[#2A2A3E]">
+      {/* Swipe action buttons */}
+      <div className="absolute inset-y-0 right-0 flex">
+        <button
+          onClick={() => handleSwipeAction(() => onUpdateCategory(item.id, ''))}
+          className="w-20 h-full bg-[#6366F1] flex flex-col items-center justify-center gap-1"
+        >
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+          <span className="text-[10px] font-medium text-white">Categoria</span>
+        </button>
+        <button
+          onClick={() => handleSwipeAction(() => onView(item.id))}
+          className="w-20 h-full bg-emerald-600 flex flex-col items-center justify-center gap-1"
+        >
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-[10px] font-medium text-white">Visto</span>
+        </button>
+      </div>
+
+      {/* Draggable card */}
+      <motion.div
+        ref={containerRef}
+        style={{ x }}
+        drag="x"
+        dragConstraints={{ left: -ACTION_WIDTH, right: 0 }}
+        dragElastic={0.1}
+        onDragStart={() => {
+          isDragging.current = true
+        }}
+        onDragEnd={handleDragEnd}
+        className="bg-[#1A1A2E] relative z-10"
+      >
+        <div
+          onClick={handleClick}
+          className="flex items-start gap-3 p-3 cursor-pointer hover:bg-[#2A2A3E] transition-colors rounded-xl"
+        >
+          {/* Thumbnail */}
+          <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-[#0F0F1A]">
+            {item.thumbnail ? (
+              <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-[#94A3B8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
             )}
           </div>
 
-          {/* Title */}
-          <h4 className="text-sm font-semibold text-white mb-1 line-clamp-2">{item.title}</h4>
-
-          {/* Source */}
-          <div className="flex items-center gap-1">
-            {item.favicon && <img src={item.favicon} alt="" className="w-3 h-3 rounded-sm" />}
-            <span className="text-xs text-[#94A3B8] truncate">{item.siteName || item.type}</span>
-          </div>
-        </div>
-
-        {/* More Button with Dropdown */}
-        <div
-          className="relative flex-shrink-0"
-          ref={menuRef}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#94A3B8] hover:text-[#6366F1] transition-colors"
-            aria-label="Mais opções"
-          >
-            <svg width="4" height="16" viewBox="0 0 4 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M2 16C1.45 16 0.979167 15.8042 0.5875 15.4125C0.195833 15.0208 0 14.55 0 14C0 13.45 0.195833 12.9792 0.5875 12.5875C0.979167 12.1958 1.45 12 2 12C2.55 12 3.02083 12.1958 3.4125 12.5875C3.80417 12.9792 4 13.45 4 14C4 14.55 3.80417 15.0208 3.4125 15.4125C3.02083 15.0208 2.55 16 2 16ZM2 10C1.45 10 0.979167 9.80417 0.5875 9.4125C0.195833 9.02083 0 8.55 0 8C0 7.45 0.195833 6.97917 0.5875 6.5875C0.979167 6.19583 1.45 6 2 6C2.55 6 3.02083 6.19583 3.4125 6.5875C3.80417 6.97917 4 7.45 4 8C4 8.55 3.80417 9.02083 3.4125 9.4125C3.02083 9.02083 2.55 10 2 10ZM2 4C1.45 4 0.979167 3.80417 0.5875 3.4125C0.195833 3.02083 0 2.55 0 2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0C2.55 0 3.02083 0.195833 3.4125 0.5875C3.80417 0.979167 4 1.45 4 2C4 2.55 3.80417 3.02083 3.4125 3.4125C3.02083 3.02083 2.55 4 2 4Z" fill="currentColor"/>
-            </svg>
-          </button>
-
-          {/* Dropdown Menu */}
-          {showMenu && (
-            <div className="absolute right-0 top-full mt-1 w-48 bg-[#1A1A2E] border border-[#2A2A3E] rounded-lg shadow-xl z-50 overflow-hidden">
-              {showCategoryPicker ? (
-                <>
-                  {/* Category picker header */}
-                  <div className="px-4 py-2 border-b border-[#2A2A3E] flex items-center gap-2">
-                    <button
-                      onClick={() => setShowCategoryPicker(false)}
-                      className="min-h-[32px] min-w-[32px] flex items-center justify-center text-[#94A3B8] hover:text-white transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                    </button>
-                    <span className="text-sm font-medium text-white">Categoria</span>
-                  </div>
-                  {/* Category list */}
-                  <div className="max-h-64 overflow-y-auto">
-                    {CATEGORIES.map((category) => (
-                      <button
-                        key={category}
-                        onClick={() => handleMenuAction(() => onUpdateCategory(item.id, category))}
-                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-2 ${
-                          item.category === category
-                            ? 'text-[#6366F1] bg-[#6366F1]/10'
-                            : 'text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white'
-                        }`}
-                      >
-                        {item.category === category && (
-                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                        <span>{category}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setShowCategoryPicker(true)}
-                    className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3"
-                  >
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                    <span>Alterar categoria</span>
-                  </button>
-                  <button
-                    onClick={() => handleMenuAction(() => onView(item.id))}
-                    className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3"
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Marcar como visto</span>
-                  </button>
-                </>
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              {item.category && (
+                <span className={`text-[10px] font-semibold ${colors.text} truncate`}>
+                  {item.category.toUpperCase()}
+                </span>
               )}
             </div>
-          )}
+
+            <h4 className="text-sm font-semibold text-white mb-1 line-clamp-2">{item.title}</h4>
+
+            <div className="flex items-center gap-1">
+              {item.favicon && <img src={item.favicon} alt="" className="w-3 h-3 rounded-sm" />}
+              <span className="text-xs text-[#94A3B8] truncate">{item.siteName || item.type}</span>
+            </div>
+          </div>
+
+          {/* More Button with Dropdown */}
+          <div
+            className="relative flex-shrink-0"
+            ref={menuRef}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#94A3B8] hover:text-[#6366F1] transition-colors"
+              aria-label="Mais opções"
+            >
+              <svg width="4" height="16" viewBox="0 0 4 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 16C1.45 16 0.979167 15.8042 0.5875 15.4125C0.195833 15.0208 0 14.55 0 14C0 13.45 0.195833 12.9792 0.5875 12.5875C0.979167 12.1958 1.45 12 2 12C2.55 12 3.02083 12.1958 3.4125 12.5875C3.80417 12.9792 4 13.45 4 14C4 14.55 3.80417 15.0208 3.4125 15.4125C3.02083 15.8042 2.55 16 2 16ZM2 10C1.45 10 0.979167 9.80417 0.5875 9.4125C0.195833 9.02083 0 8.55 0 8C0 7.45 0.195833 6.97917 0.5875 6.5875C0.979167 6.19583 1.45 6 2 6C2.55 6 3.02083 6.19583 3.4125 6.5875C3.80417 6.97917 4 7.45 4 8C4 8.55 3.80417 9.02083 3.4125 9.4125C3.02083 9.02083 2.55 10 2 10ZM2 4C1.45 4 0.979167 3.80417 0.5875 3.4125C0.195833 3.02083 0 2.55 0 2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0C2.55 0 3.02083 0.195833 3.4125 0.5875C3.80417 0.979167 4 1.45 4 2C4 2.55 3.80417 3.02083 3.4125 3.4125C3.02083 3.02083 2.55 4 2 4Z" fill="currentColor"/>
+              </svg>
+            </button>
+
+            {showMenu && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-[#1A1A2E] border border-[#2A2A3E] rounded-lg shadow-xl z-50 overflow-hidden">
+                {showCategoryPicker ? (
+                  <>
+                    <div className="px-4 py-2 border-b border-[#2A2A3E] flex items-center gap-2">
+                      <button
+                        onClick={() => setShowCategoryPicker(false)}
+                        className="min-h-[32px] min-w-[32px] flex items-center justify-center text-[#94A3B8] hover:text-white transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <span className="text-sm font-medium text-white">Categoria</span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {CATEGORIES.map((category) => (
+                        <button
+                          key={category}
+                          onClick={() => handleMenuAction(() => onUpdateCategory(item.id, category))}
+                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-2 ${
+                            item.category === category
+                              ? 'text-[#6366F1] bg-[#6366F1]/10'
+                              : 'text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white'
+                          }`}
+                        >
+                          {item.category === category && (
+                            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                          <span>{category}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setShowCategoryPicker(true)}
+                      className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3"
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                      <span>Alterar categoria</span>
+                    </button>
+                    <button
+                      onClick={() => handleMenuAction(() => onView(item.id))}
+                      className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3"
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Marcar como visto</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }
@@ -304,13 +397,11 @@ export default function FilaPage() {
             )}
           </div>
         ) : (
-          /* Grouped Items */
           <div className="space-y-6">
             {Array.from(grouped.entries()).map(([category, items]) => {
               const colors = getCategoryColor(category === 'Sem categoria' ? null : category)
               return (
                 <section key={category}>
-                  {/* Category Header */}
                   <button
                     onClick={() => toggleCategory(category)}
                     className="flex items-center gap-2 mb-3 min-h-[44px] w-full text-left"
@@ -329,7 +420,6 @@ export default function FilaPage() {
                     <span className={`text-xs ${colors.text} opacity-60`}>({items.length})</span>
                   </button>
 
-                  {/* Items */}
                   {!collapsedCategories.has(category) && (
                     <div className="space-y-3">
                       {items.map((item) => (

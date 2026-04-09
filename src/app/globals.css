@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* iOS PWA fixes */
+html {
+  background-color: #0F0F1A;
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  overscroll-behavior-y: contain;
+}
+
 @theme {
   /* Dark Mode Colors - Mobile First Design */
   --color-background: 15 15 26;      /* #0F0F1A - Deep blue background */
