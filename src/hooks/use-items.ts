@@ -21,6 +21,7 @@ export function useItems() {
   const [loading, setLoading] = useState(true)
   const [enriching, setEnriching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [duplicateItem, setDuplicateItem] = useState<Item | null>(null)
 
   // Carrega os itens ao montar do componente
   useEffect(() => {
@@ -72,11 +73,13 @@ export function useItems() {
   async function addItem(enrichedData: EnrichedItem): Promise<Item | null> {
     try {
       setError(null)
+      setDuplicateItem(null)
 
       // Verifica se já existe
-      const exists = await ItemsRepository.existsByUrl(enrichedData.url)
-      if (exists) {
-        setError('This URL is already saved')
+      const existing = await ItemsRepository.findByUrl(enrichedData.url)
+      if (existing) {
+        setDuplicateItem(existing)
+        setError('Este link já foi salvo')
         return null
       }
 
@@ -151,6 +154,17 @@ export function useItems() {
     }
   }
 
+  async function updateCategory(id: string, category: string): Promise<void> {
+    try {
+      await ItemsRepository.updateCategory(id, category)
+      setUnviewed(prev =>
+        prev.map(item => item.id === id ? { ...item, category } : item)
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update category')
+    }
+  }
+
   async function deleteItem(id: string): Promise<void> {
     try {
       await ItemsRepository.delete(id)
@@ -164,6 +178,9 @@ export function useItems() {
   async function dismissSuggestion(id: string): Promise<void> {
     try {
       await ItemsRepository.dismissSuggestion(id)
+      setUnviewed(prev =>
+        prev.map(item => item.id === id ? { ...item, suggestionDismissedAt: Date.now() } : item)
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to dismiss suggestion')
     }
@@ -172,6 +189,9 @@ export function useItems() {
   async function resetSuggestionDismissal(id: string): Promise<void> {
     try {
       await ItemsRepository.resetSuggestionDismissal(id)
+      setUnviewed(prev =>
+        prev.map(item => item.id === id ? { ...item, suggestionDismissedAt: null } : item)
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset suggestion')
     }
@@ -270,11 +290,13 @@ export function useItems() {
     loading,
     enriching,
     error,
+    duplicateItem,
     enrichUrl,
     addItem,
     markAsViewed,
     markAsUnviewed,
     deleteItem,
+    updateCategory,
     getSuggestion,
     dismissSuggestion,
     resetSuggestionDismissal,

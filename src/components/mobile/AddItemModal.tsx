@@ -1,273 +1,341 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import type { EnrichedItem } from '@/types'
+import type { EnrichedItem, Item, ItemType } from '@/types'
+import { relativeTime } from '@/lib/utils'
 
 interface AddItemModalProps {
-  isOpen: boolean
-  onClose: () => void
-  enriching: boolean
-  addItem: (item: EnrichedItem) => Promise<any>
-  enrichUrl: (url: string) => Promise<EnrichedItem | null>
-  error: string | null
   initialUrl?: string
+  onSaved?: () => void
 }
 
-export function AddItemModal({
-  isOpen,
-  onClose,
-  enriching,
-  addItem,
-  enrichUrl,
-  error,
-  initialUrl = ''
-}: AddItemModalProps) {
-  const router = useRouter()
-  const [url, setUrl] = useState('')
-  const [preview, setPreview] = useState<EnrichedItem | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
+const typeLabels: Record<ItemType, string> = {
+  video: 'VÍDEO',
+  article: 'ARTIGO',
+  repo: 'REPO',
+  tweet: 'TWEET',
+  other: 'OUTRO',
+}
 
-  // Reset form when modal opens/closes, and auto-preview shared URLs
+const typeColors: Record<ItemType, string> = {
+  video: 'bg-red-500',
+  article: 'bg-blue-500',
+  repo: 'bg-gray-500',
+  tweet: 'bg-sky-500',
+  other: 'bg-gray-400',
+}
+
+export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
+  const router = useRouter()
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const [url, setUrl] = useState(initialUrl ?? '')
+  const [enrichedData, setEnrichedData] = useState<EnrichedItem | null>(null)
+  const [enriching, setEnriching] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [duplicateItem, setDuplicateItem] = useState<Item | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // Focus input on mount if no initial URL
   useEffect(() => {
-    if (!isOpen) {
-      setUrl('')
-      setPreview(null)
-      setFormError(null)
+    if (!initialUrl) {
+      inputRef.current?.focus()
+    }
+  }, [initialUrl])
+
+  // Auto-enrich when URL changes (debounced)
+  const enrichTimerRef = useRef<NodeJS.Timeout>(null)
+  const enrichUrl = useCallback(async (rawUrl: string) => {
+    if (enrichTimerRef.current) clearTimeout(enrichTimerRef.current)
+
+    // Basic URL validation
+    try {
+      new URL(rawUrl)
+    } catch {
+      setEnrichedData(null)
+      setDuplicateItem(null)
       return
     }
 
-    // If an initial URL was provided (Share Target), set and auto-preview
-    if (initialUrl) {
-      setUrl(initialUrl)
-      enrichUrl(initialUrl).then((result) => {
-        if (result) setPreview(result)
-      }).catch(() => {})
-    }
-  }, [isOpen, initialUrl])
+    setEnriching(true)
+    setError(null)
+    setDuplicateItem(null)
 
-  // Close on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose()
+    try {
+      const res = await fetch('/api/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: rawUrl }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.message || 'Failed to enrich URL')
       }
+      const data: EnrichedItem = await res.json()
+      setEnrichedData(data)
+
+      // Check for duplicate
+      const { ItemsRepository } = await import('@/repositories/items-repository')
+      const existing = await ItemsRepository.findByUrl(rawUrl)
+      if (existing) {
+        setDuplicateItem(existing)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load preview')
+    } finally {
+      setEnriching(false)
     }
-    window.addEventListener('keydown', handleEscape)
-    return () => window.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
+  }, [])
 
-  async function handlePreview() {
-    if (!url.trim()) return
-
-    setFormError(null)
-    setLoading(true)
-
-    const result = await enrichUrl(url)
-
-    if (result) {
-      setPreview(result)
-    } else {
-      setFormError(error || 'Falha ao carregar pré-visualização')
+  // Debounce enrichment on URL change
+  useEffect(() => {
+    if (!url.trim()) {
+      setEnrichedData(null)
+      setDuplicateItem(null)
+      return
     }
+    enrichTimerRef.current = setTimeout(() => enrichUrl(url.trim()), 800)
+    return () => {
+      if (enrichTimerRef.current) clearTimeout(enrichTimerRef.current)
+    }
+  }, [url, enrichUrl])
 
-    setLoading(false)
-  }
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (enrichTimerRef.current) clearTimeout(enrichTimerRef.current)
+    }
+  }, [])
 
   async function handleSave() {
-    if (!preview) return
+    if (!enrichedData) return
 
-    const item = await addItem(preview)
+    setSaving(true)
+    setSaved(false)
+    setError(null)
 
-    if (item) {
-      // Close modal and go back to home
-      onClose()
+    try {
+      const { ItemsRepository } = await import('@/repositories/items-repository')
+
+      // Save item immediately — no AI blocking
+      const item = await ItemsRepository.create({
+        url: enrichedData.url,
+        title: enrichedData.title,
+        description: enrichedData.description,
+        thumbnail: enrichedData.thumbnail,
+        siteName: enrichedData.siteName,
+        favicon: enrichedData.favicon,
+        type: enrichedData.type,
+      })
+
+      setSaving(false)
+      setSaved(true)
+      onSaved?.()
+
+      // Brief success state before redirect
+      await new Promise<void>((r) => setTimeout(r, 600))
       router.push('/')
-    } else {
-      setFormError(error || 'Falha ao salvar item')
+
+      // Process AI in background after navigation
+      processAiInBackground(item.id, enrichedData.title, enrichedData.description)
+    } catch (err) {
+      setSaving(false)
+      setError(err instanceof Error ? err.message : 'Failed to save item')
+    }
+  }
+
+  async function processAiInBackground(itemId: string, title: string, description: string | null) {
+    try {
+      const { aiService } = await import('@/lib/ai')
+      if (!aiService.isReady()) return
+
+      const aiResult = await aiService.processItem(title, description)
+
+      const { ItemsRepository } = await import('@/repositories/items-repository')
+      await ItemsRepository.updateAiData(itemId, aiResult.category, aiResult.embedding)
+    } catch {
+      // AI failure is non-critical — item is already saved
     }
   }
 
   function handleCancel() {
-    setPreview(null)
-    setFormError(null)
+    if (initialUrl) {
+      router.push('/')
+    } else {
+      router.back()
+    }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <div className="min-h-screen bg-[#121826] pb-20">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-[#121826] border-b border-[#1E2532]">
+        <div className="max-w-lg mx-auto flex items-center gap-3 px-4 py-3">
+          <button
+            onClick={handleCancel}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-white"
+            aria-label="Voltar"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <h1 className="text-lg font-semibold text-white flex-1">Novo Link</h1>
+        </div>
+      </header>
 
-      {/* Modal Content */}
-      <div className="relative bg-[#1A1A2E] rounded-t-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
-        {/* Handle */}
-        <div className="flex justify-center py-3">
-          <div className="w-10 h-1 bg-[#94A3B8]/30 rounded-full" />
+      <main className="max-w-lg mx-auto px-4 pt-5">
+        {/* Input Section */}
+        <div className="mb-4">
+          <label className="block text-sm text-gray-400 mb-1.5">Colar Link</label>
+          <div className="relative">
+            <input
+              ref={inputRef}
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full bg-[#1E2532] border border-[#2A3441] rounded-xl px-4 py-3 pr-11 text-base text-white placeholder-gray-500 focus:outline-none focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1] transition-colors"
+            />
+            {/* Link icon inside input */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6366F1] pointer-events-none">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            </div>
+          </div>
         </div>
 
-        <div className="px-4 pb-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white font-heading">
-              Salvar para ver depois
-            </h2>
-            <button
-              onClick={onClose}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center"
-              aria-label="Fechar"
-            >
-              <svg
-                className="w-6 h-6 text-[#94A3B8]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* URL Input */}
+        {/* Preview Section */}
+        {enriching && (
           <div className="mb-4">
-            <div className="flex gap-2">
-              <input
-                type="url"
-                placeholder="Cole a URL aqui..."
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !preview && handlePreview()}
-                disabled={loading || enriching}
-                className={`
-                  flex-1 min-h-[48px] px-4 py-3 rounded-xl
-                  bg-[#0F0F1A] border ${formError ? 'border-red-500' : 'border-[#2A2A3E]'}
-                  text-white placeholder-[#94A3B8]
-                  focus:outline-none focus:ring-2 focus:ring-[#6366F1]
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                  text-base
-                `}
-                autoFocus
-              />
-              {!preview && (
-                <button
-                  onClick={handlePreview}
-                  disabled={!url.trim() || loading}
-                  className={`
-                    min-h-[48px] px-6 rounded-xl font-semibold text-sm
-                    bg-[#6366F1] text-white hover:bg-[#5558E3]
-                    disabled:opacity-50 disabled:cursor-not-allowed
-                    transition-colors
-                  `}
-                >
-                  {loading ? (
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                  ) : 'Preview'}
-                </button>
-              )}
+            <p className="text-xs font-semibold text-[#6366F1] uppercase tracking-wider mb-2">Prévia do Conteúdo</p>
+            <div className="bg-white rounded-xl p-4 animate-pulse">
+              <div className="h-36 bg-gray-200 rounded-lg mb-3" />
+              <div className="h-3 bg-gray-200 rounded w-1/3 mb-2" />
+              <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
+              <div className="h-3 bg-gray-200 rounded w-full" />
             </div>
-
-            {formError && (
-              <p className="mt-2 text-sm text-red-400">{formError}</p>
-            )}
           </div>
+        )}
 
-          {/* Preview Card */}
-          {preview && (
-            <div className="bg-[#0F0F1A] rounded-xl overflow-hidden border border-[#2A2A3E]">
-              {preview.thumbnail && (
-                <div className="relative w-full aspect-video">
+        {enrichedData && !enriching && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-[#6366F1] uppercase tracking-wider mb-2">Prévia do Conteúdo</p>
+            <div className="bg-white rounded-xl overflow-hidden">
+              {/* Thumbnail */}
+              {enrichedData.thumbnail && (
+                <div className="relative">
                   <img
-                    src={preview.thumbnail}
-                    alt={preview.title}
-                    className="w-full h-full object-cover"
+                    src={enrichedData.thumbnail}
+                    alt=""
+                    className="w-full h-44 object-cover"
                   />
+                  {/* Play overlay for videos */}
+                  {enrichedData.type === 'video' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                          <path d="M6 4.5L16 10L6 15.5V4.5Z" fill="#1F2937" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                  {/* Type badge */}
+                  <div className="absolute top-2 left-2">
+                    <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded ${typeColors[enrichedData.type]}`}>
+                      {typeLabels[enrichedData.type]}
+                    </span>
+                  </div>
                 </div>
               )}
 
-              <div className="p-4">
-                <h3 className="font-semibold text-lg text-white mb-2 line-clamp-2">
-                  {preview.title}
+              {/* Content */}
+              <div className="p-3">
+                {/* Source */}
+                <div className="flex items-center gap-1.5 mb-1">
+                  {enrichedData.favicon && (
+                    <img src={enrichedData.favicon} alt="" className="w-3.5 h-3.5 rounded-sm" />
+                  )}
+                  <span className="text-xs text-gray-500">{enrichedData.siteName || new URL(enrichedData.url).hostname}</span>
+                </div>
+                {/* Title */}
+                <h3 className="text-sm font-bold text-gray-900 line-clamp-2 mb-1">
+                  {enrichedData.title}
                 </h3>
-
-                {preview.description && (
-                  <p className="text-sm text-[#94A3B8] mb-3 line-clamp-2">
-                    {preview.description}
+                {/* Description */}
+                {enrichedData.description && (
+                  <p className="text-xs text-gray-500 line-clamp-2">
+                    {enrichedData.description}
                   </p>
                 )}
-
-                <div className="flex items-center gap-2 mb-4">
-                  {preview.favicon && (
-                    <img
-                      src={preview.favicon}
-                      alt=""
-                      className="w-4 h-4 rounded-sm"
-                    />
-                  )}
-                  <span className="text-xs text-[#94A3B8]">
-                    {preview.siteName || new URL(preview.url).hostname}
-                  </span>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleSave}
-                    disabled={enriching}
-                    className={`
-                      flex-1 min-h-[44px] px-4 py-3 rounded-xl font-semibold text-sm
-                      bg-[#6366F1] text-white hover:bg-[#5558E3]
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                      transition-colors
-                    `}
-                  >
-                    {enriching ? 'Salvando...' : 'Salvar'}
-                  </button>
-                  <button
-                    onClick={handleCancel}
-                    disabled={enriching}
-                    className={`
-                      min-h-[44px] px-6 rounded-xl font-semibold text-sm
-                      bg-transparent text-white border border-[#6366F1]
-                      hover:bg-[#6366F1]/10
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                      transition-colors
-                    `}
-                  >
-                    Cancelar
-                  </button>
-                </div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
 
-      <style jsx>{`
-        @keyframes slide-up {
-          from {
-            transform: translateY(100%);
-          }
-          to {
-            transform: translateY(0);
-          }
-        }
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-      `}</style>
+        {/* Duplicate Warning */}
+        {duplicateItem && (
+          <div className="mb-4 bg-[#92400E] rounded-lg p-3 flex gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-yellow-300">
+                <path d="M12 9V13M12 17H12.01M10.29 3.86L1.82 18C1.64563 18.3045 1.55466 18.6484 1.55596 18.9975C1.55726 19.3466 1.65079 19.6898 1.82745 19.9931C2.00412 20.2963 2.25763 20.5497 2.56095 20.7262C2.86427 20.9027 3.20755 20.996 3.55664 20.997H20.4434C20.7925 20.996 21.1358 20.9027 21.4391 20.7262C21.7424 20.5497 21.9959 20.2963 22.1726 19.9931C22.3492 19.6898 22.4428 19.3466 22.4441 18.9975C22.4454 18.6484 22.3544 18.3045 22.18 18L13.71 3.86C13.5317 3.55906 13.2776 3.30816 12.9745 3.13356C12.6715 2.95895 12.3291 2.86682 11.9815 2.86682C11.6339 2.86682 11.2915 2.95895 10.9885 3.13356C10.6854 3.30816 10.4313 3.55906 10.253 3.86L10.29 3.86Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Aviso de duplicata</p>
+              <p className="text-sm text-yellow-200 mt-0.5">
+                Este link já foi salvo{duplicateItem.category ? ` na sua pasta '${duplicateItem.category}'` : ''} {duplicateItem.createdAt ? `há ${relativeTime(duplicateItem.createdAt)}` : ''}.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && !duplicateItem && (
+          <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-lg">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={handleCancel}
+            className="flex-1 min-h-[48px] bg-[#374151] hover:bg-[#4B5563] text-white font-medium rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!enrichedData || saving || saved || !!duplicateItem}
+            className={`flex-1 min-h-[48px] font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${
+              saved
+                ? 'bg-emerald-500 text-white'
+                : 'bg-[#6366F1] hover:bg-[#5558E6] disabled:bg-[#6366F1]/40 disabled:cursor-not-allowed text-white'
+            }`}
+          >
+            {saving ? (
+              <>
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Salvando...
+              </>
+            ) : saved ? (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Salvo!
+              </>
+            ) : (
+              'Salvar Link'
+            )}
+          </button>
+        </div>
+      </main>
     </div>
   )
 }

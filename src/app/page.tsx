@@ -10,17 +10,54 @@ import {
   QueueSection
 } from '@/components/mobile'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { AnimatePresence, motion } from 'framer-motion'
 import { aiService } from '@/lib/ai'
 import type { Item } from '@/types'
 
 const AI_LOADED_KEY = 'depois_ai_loaded'
 
+const pageEnter = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+}
+
+const pageEnterTransition = {
+  duration: 0.4,
+  ease: 'easeOut' as const,
+}
+
+// Item 26: Orchestrated reveal delays
+const headerReveal = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.3, delay: 0 } },
+}
+
+const suggestionReveal = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.3, delay: 0.1 } },
+}
+
+const queueReveal = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.3, delay: 0.2 } },
+}
+
+// Item 25: Error message entrance
+const errorVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' as const } },
+  exit: { opacity: 0, transition: { duration: 0.2 } },
+}
+
 export default function HomePage() {
+  const router = useRouter()
   const {
     unviewed,
     recentlyViewed,
     markAsViewed,
     deleteItem,
+    updateCategory,
     getSuggestion,
     dismissSuggestion,
     resetSuggestionDismissal,
@@ -107,52 +144,97 @@ export default function HomePage() {
   async function handleViewSuggestion() {
     if (!suggestion) return
 
-    await markAsViewed(suggestion.id)
+    const itemId = suggestion.id
+    await markAsViewed(itemId)
     setSuggestion(null)
 
-    // Load new suggestion
-    await loadSuggestion()
-  }
+    // Navigate to item detail page
+    router.push(`/item/${itemId}`)
 
-  // Show AI loading screen on first visit
-  if (!aiLoaded) {
-    return <AILoadingScreen onComplete={handleAILoaded} />
+    // Load new suggestion in background
+    loadSuggestion()
   }
 
   return (
-    <div className="min-h-screen bg-[#0F0F1A] pb-20">
-      <MobileHeader />
+    <AnimatePresence mode="wait">
+      {!aiLoaded ? (
+        <AILoadingScreen key="loading" onComplete={handleAILoaded} />
+      ) : (
+        <motion.div
+          key="home"
+          className="min-h-screen bg-[#0F0F1A] pb-20"
+          variants={pageEnter}
+          initial="initial"
+          animate="animate"
+          transition={pageEnterTransition}
+        >
+          <motion.div variants={headerReveal} initial="initial" animate="animate">
+            <MobileHeader />
+          </motion.div>
 
-      <main className="max-w-lg mx-auto">
-        {/* AI Suggestion Section */}
-        {suggestion ? (
-          <AIRecommendationCard
-            item={suggestion}
-            onView={handleViewSuggestion}
-            onDismiss={handleDismissSuggestion}
-            loading={suggestionLoading}
-          />
-        ) : !suggestionLoading && recentlyViewed.length > 0 ? (
-          <AIRecommendationEmpty />
-        ) : null}
+          <main className="max-w-lg mx-auto">
+            {/* AI Suggestion Section - Item 12: AnimatePresence for card↔empty transition */}
+            <AnimatePresence mode="wait">
+              {suggestion ? (
+                <motion.div
+                  key="suggestion"
+                  variants={suggestionReveal}
+                  initial="initial"
+                  animate="animate"
+                >
+                  <AIRecommendationCard
+                    key={suggestion.id}
+                    item={suggestion}
+                    onView={handleViewSuggestion}
+                    onDismiss={handleDismissSuggestion}
+                    loading={suggestionLoading}
+                  />
+                </motion.div>
+              ) : !suggestionLoading && recentlyViewed.length > 0 ? (
+                <motion.div
+                  key="empty"
+                  variants={suggestionReveal}
+                  initial="initial"
+                  animate="animate"
+                >
+                  <AIRecommendationEmpty />
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
 
-        {/* Queue Section */}
-        <QueueSection
-          items={unviewed}
-          onView={handleViewItem}
-          onDelete={deleteItem}
-          onResetDismissal={resetSuggestionDismissal}
-        />
+            {/* Queue Section - Item 26: delayed reveal */}
+            <motion.div variants={queueReveal} initial="initial" animate="animate">
+              <QueueSection
+                items={unviewed}
+                onView={handleViewItem}
+                onDelete={deleteItem}
+                onUpdateCategory={updateCategory}
+                onResetDismissal={resetSuggestionDismissal}
+              />
+            </motion.div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mx-4 mb-4 p-4 bg-red-900/20 border border-red-800 rounded-xl">
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
-        )}
-      </main>
+            {/* Error Message - Item 25: fade-in + slide */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  key="error"
+                  variants={errorVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="mx-4 mb-4 p-4 bg-red-900/20 border border-red-800 rounded-xl"
+                >
+                  <p className="text-sm text-red-400">{error}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </main>
 
-      <BottomNavigation />
-    </div>
+          <motion.div variants={headerReveal} initial="initial" animate="animate">
+            <BottomNavigation />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

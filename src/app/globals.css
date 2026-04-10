@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* iOS PWA fixes */
+html {
+  background-color: #0F0F1A;
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  overscroll-behavior-y: contain;
+}
+
 @theme {
   /* Dark Mode Colors - Mobile First Design */
   --color-background: 15 15 26;      /* #0F0F1A - Deep blue background */
@@ -22,6 +33,48 @@
   --color-input: 40 40 60;
   --color-ring: 99 102 241;
   --radius: 1rem; /* 16px border radius for cards */
+
+  /* Landing Page Colors */
+  --color-landing-bg: #070714;
+  --color-landing-card: #12122A;
+  --color-landing-border: #1E1E3A;
+  --color-landing-neon: #00FF88;
+  --color-landing-indigo: #6366F1;
+  --color-landing-violet: #8B5CF6;
+  --color-landing-text: #F0F0F5;
+  --color-landing-muted: #8B8BA7;
+  --color-landing-caption: #5A5A7A;
+
+  /* Landing Page Color Tokens (for rgba usage in SVGs, shadows, gradients) */
+  --landing-indigo-rgb: 99, 102, 241;
+  --landing-neon-rgb: 0, 255, 136;
+  --landing-bg-color: #070714;
+
+  /* Landing Page Animations */
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-glow-pulse: glow-pulse 2s ease-in-out infinite;
+  --animate-draw-line: draw-line 1.5s ease-out forwards;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes draw-line {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Restore pointer cursor on interactive elements (Tailwind v4 reset removes it) */
+@layer base {
+  button, a, [role="button"], input[type="checkbox"], input[type="radio"], label[for], select, summary {
+    cursor: pointer;
+  }
 }
 
 /* Hide scrollbar for horizontal scrolling */
@@ -31,4 +84,97 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Dot grid texture for landing page */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Animated gradient for hero background */
+.hero-gradient {
+  background: #070714;
+  position: relative;
+  overflow: hidden;
+}
+.hero-gradient::before,
+.hero-gradient::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  z-index: 0;
+  animation: gradient-drift 8s ease-in-out infinite alternate;
+}
+.hero-gradient::before {
+  width: 600px;
+  height: 600px;
+  top: -200px;
+  right: -100px;
+  background: rgba(99, 102, 241, 0.15);
+}
+.hero-gradient::after {
+  width: 500px;
+  height: 500px;
+  bottom: -150px;
+  left: -100px;
+  background: rgba(0, 255, 136, 0.08);
+  animation-delay: -4s;
+}
+
+@keyframes gradient-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(30px, 20px) scale(1.1); }
+}
+
+/* Glow pulse for CTA buttons */
+.cta-glow {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3), 0 0 60px rgba(99, 102, 241, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+.cta-glow:hover {
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.5), 0 0 80px rgba(99, 102, 241, 0.2);
+}
+
+/* Glassmorphism card */
+.glass-card {
+  background: rgba(18, 18, 42, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 30, 58, 0.6);
+}
+
+/* Thumbnail shimmer placeholder */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-muted);
+}
+
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
+  animation: shimmer-slide 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

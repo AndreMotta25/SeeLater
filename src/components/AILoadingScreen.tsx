@@ -1,7 +1,41 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { aiService, type AIProgress } from '@/lib/ai'
+
+const loadingExit = {
+  initial: { opacity: 1 },
+  exit: { opacity: 0 },
+}
+
+const loadingExitTransition = {
+  duration: 0.4,
+  ease: 'easeInOut' as const,
+}
+
+const statusTextVariants = {
+  initial: { opacity: 0, y: 4 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -4 },
+}
+
+const statusTextTransition = {
+  duration: 0.2,
+  ease: 'easeOut' as const,
+}
+
+// Item 3: Error message fade-in + slide
+const errorBlockVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' as const } },
+}
+
+// Item 4: Storage warning fade-in
+const storageWarningVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.3, ease: 'easeOut' as const } },
+}
 
 interface ModelProgress {
   classifier: { progress: number; status: string; file?: string }
@@ -140,14 +174,16 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
     progress: number
     status: string
   }) {
+    const progressPercent = Math.floor(progress)
+
     return (
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {label}
           </span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {Math.floor(progress)}%
+          <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+            {progressPercent}%
           </span>
         </div>
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-1">
@@ -156,15 +192,33 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
             style={{ width: `${Math.min(progress, 100)}%` }}
           />
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 h-4">
-          {status}
-        </p>
+        <div className="h-4 overflow-hidden">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={status}
+              className="text-xs text-gray-500 dark:text-gray-400"
+              variants={statusTextVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={statusTextTransition}
+            >
+              {status}
+            </motion.p>
+          </AnimatePresence>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 px-4">
+    <motion.div
+      className="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 px-4"
+      variants={loadingExit}
+      initial="initial"
+      exit="exit"
+      transition={loadingExitTransition}
+    >
       <div className="max-w-md w-full">
         {/* Logo/Icon */}
         <div className="text-center mb-8">
@@ -247,30 +301,40 @@ export function AILoadingScreen({ onComplete }: { onComplete: () => void }) {
           </p>
         </div>
 
-        {/* Persistent Storage Warning */}
+        {/* Persistent Storage Warning - Item 4 */}
         {!fromCache && persistentStorage === false && (
-          <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+          <motion.div
+            variants={storageWarningVariants}
+            initial="initial"
+            animate="animate"
+            className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg"
+          >
             <p className="text-sm text-orange-800 dark:text-orange-300 text-center">
               <span className="font-medium">⚠️ Armazenamento não persistente:</span>
             </p>
             <p className="text-xs text-orange-700 dark:text-orange-400 text-center mt-2">
               O navegador pode apagar os modelos de IA. Para usar offline, verifique as configurações de privacidade do navegador e desative "Limpar dados ao sair".
             </p>
-          </div>
+          </motion.div>
         )}
 
-        {/* Error Message */}
+        {/* Error Message - Item 3 */}
         {error && (
-          <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+          <motion.div
+            variants={errorBlockVariants}
+            initial="initial"
+            animate="animate"
+            className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg"
+          >
             <p className="text-sm text-yellow-800 dark:text-yellow-300 text-center">
               <span className="font-medium">⚠️ IA não disponível:</span> {error}
             </p>
             <p className="text-xs text-yellow-700 dark:text-yellow-400 text-center mt-2">
               O app continuará funcionando sem recomendações de IA.
             </p>
-          </div>
+          </motion.div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }
