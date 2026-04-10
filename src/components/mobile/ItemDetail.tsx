@@ -2,7 +2,7 @@
 
 import { type Item } from "@/types";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface ItemDetailProps {
   item: Item;
@@ -19,6 +19,11 @@ export function ItemDetail({
 }: ItemDetailProps) {
   const router = useRouter();
   const [viewed, setViewed] = useState(item.viewed);
+
+  // Sync viewed state when item prop changes
+  useEffect(() => {
+    setViewed(item.viewed);
+  }, [item.viewed]);
 
   async function handleMarkAsViewed() {
     setViewed(true);

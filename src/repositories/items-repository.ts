@@ -155,6 +155,10 @@ export class ItemsRepository {
     await db.items.update(id, { category, updatedAt: Date.now() })
   }
 
+  static async updateAiData(id: string, category: string, embedding: number[]): Promise<void> {
+    await db.items.update(id, { category, embedding, updatedAt: Date.now() })
+  }
+
   /**
    * Deleta um item
    */

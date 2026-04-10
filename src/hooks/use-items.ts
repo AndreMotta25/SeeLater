@@ -178,6 +178,9 @@ export function useItems() {
   async function dismissSuggestion(id: string): Promise<void> {
     try {
       await ItemsRepository.dismissSuggestion(id)
+      setUnviewed(prev =>
+        prev.map(item => item.id === id ? { ...item, suggestionDismissedAt: Date.now() } : item)
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to dismiss suggestion')
     }
@@ -186,6 +189,9 @@ export function useItems() {
   async function resetSuggestionDismissal(id: string): Promise<void> {
     try {
       await ItemsRepository.resetSuggestionDismissal(id)
+      setUnviewed(prev =>
+        prev.map(item => item.id === id ? { ...item, suggestionDismissedAt: null } : item)
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset suggestion')
     }

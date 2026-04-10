@@ -2,7 +2,6 @@
 
 import { useItems } from '@/hooks/use-items'
 import { MobileHeader, BottomNavigation } from '@/components/mobile'
-import { CATEGORIES } from '@/lib/ai'
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, useMotionValue, animate } from 'framer-motion'
@@ -61,29 +60,12 @@ function FilaCard({
 }) {
   const router = useRouter()
   const colors = getCategoryColor(item.category)
-  const [showMenu, setShowMenu] = useState(false)
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
 
   // Swipe state
   const x = useMotionValue(0)
   const [swipeOpen, setSwipeOpen] = useState(false)
   const isDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!showMenu) return
-
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false)
-        setShowCategoryPicker(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showMenu])
 
   // Close swipe when clicking outside
   useEffect(() => {
@@ -106,12 +88,6 @@ function FilaCard({
   function closeSwipe() {
     setSwipeOpen(false)
     animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
-  }
-
-  function handleMenuAction(action: () => void) {
-    setShowMenu(false)
-    setShowCategoryPicker(false)
-    action()
   }
 
   function handleSwipeAction(action: () => void) {
@@ -215,84 +191,6 @@ function FilaCard({
               <span className="text-xs text-[#94A3B8] truncate">{item.siteName || item.type}</span>
             </div>
           </div>
-
-          {/* More Button with Dropdown */}
-          <div
-            className="relative flex-shrink-0"
-            ref={menuRef}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#94A3B8] hover:text-[#6366F1] transition-colors"
-              aria-label="Mais opções"
-            >
-              <svg width="4" height="16" viewBox="0 0 4 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2 16C1.45 16 0.979167 15.8042 0.5875 15.4125C0.195833 15.0208 0 14.55 0 14C0 13.45 0.195833 12.9792 0.5875 12.5875C0.979167 12.1958 1.45 12 2 12C2.55 12 3.02083 12.1958 3.4125 12.5875C3.80417 12.9792 4 13.45 4 14C4 14.55 3.80417 15.0208 3.4125 15.4125C3.02083 15.8042 2.55 16 2 16ZM2 10C1.45 10 0.979167 9.80417 0.5875 9.4125C0.195833 9.02083 0 8.55 0 8C0 7.45 0.195833 6.97917 0.5875 6.5875C0.979167 6.19583 1.45 6 2 6C2.55 6 3.02083 6.19583 3.4125 6.5875C3.80417 6.97917 4 7.45 4 8C4 8.55 3.80417 9.02083 3.4125 9.4125C3.02083 9.02083 2.55 10 2 10ZM2 4C1.45 4 0.979167 3.80417 0.5875 3.4125C0.195833 3.02083 0 2.55 0 2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0C2.55 0 3.02083 0.195833 3.4125 0.5875C3.80417 0.979167 4 1.45 4 2C4 2.55 3.80417 3.02083 3.4125 3.4125C3.02083 3.02083 2.55 4 2 4Z" fill="currentColor"/>
-              </svg>
-            </button>
-
-            {showMenu && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-[#1A1A2E] border border-[#2A2A3E] rounded-lg shadow-xl z-50 overflow-hidden">
-                {showCategoryPicker ? (
-                  <>
-                    <div className="px-4 py-2 border-b border-[#2A2A3E] flex items-center gap-2">
-                      <button
-                        onClick={() => setShowCategoryPicker(false)}
-                        className="min-h-[32px] min-w-[32px] flex items-center justify-center text-[#94A3B8] hover:text-white transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      <span className="text-sm font-medium text-white">Categoria</span>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto">
-                      {CATEGORIES.map((category) => (
-                        <button
-                          key={category}
-                          onClick={() => handleMenuAction(() => onUpdateCategory(item.id, category))}
-                          className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-2 ${
-                            item.category === category
-                              ? 'text-[#6366F1] bg-[#6366F1]/10'
-                              : 'text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white'
-                          }`}
-                        >
-                          {item.category === category && (
-                            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                          <span>{category}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setShowCategoryPicker(true)}
-                      className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3"
-                    >
-                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                      <span>Alterar categoria</span>
-                    </button>
-                    <button
-                      onClick={() => handleMenuAction(() => onView(item.id))}
-                      className="w-full px-4 py-3 text-left text-sm text-[#94A3B8] hover:bg-[#2A2A3E] hover:text-white transition-colors flex items-center gap-3"
-                    >
-                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Marcar como visto</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </motion.div>
     </div>
@@ -335,7 +233,6 @@ export default function FilaPage() {
       <MobileHeader />
 
       <main className="max-w-lg mx-auto px-4 py-4">
-        {/* Page Header */}
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-white font-heading mb-2">Sua Fila</h1>
           <p className="text-sm text-[#94A3B8]">
@@ -343,7 +240,6 @@ export default function FilaPage() {
           </p>
         </div>
 
-        {/* Search Bar */}
         <div className="relative mb-6">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]"
@@ -362,7 +258,6 @@ export default function FilaPage() {
           />
         </div>
 
-        {/* Loading State */}
         {loading ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (

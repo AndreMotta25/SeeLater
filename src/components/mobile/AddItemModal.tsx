@@ -34,6 +34,7 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
   const [enrichedData, setEnrichedData] = useState<EnrichedItem | null>(null)
   const [enriching, setEnriching] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [duplicateItem, setDuplicateItem] = useState<Item | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -112,32 +113,14 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
     if (!enrichedData) return
 
     setSaving(true)
+    setSaved(false)
     setError(null)
-
-    // Yield to browser so the loading overlay paints before heavy work starts
-    await new Promise<void>((r) => requestAnimationFrame(() => r()))
 
     try {
       const { ItemsRepository } = await import('@/repositories/items-repository')
-      const { aiService } = await import('@/lib/ai')
 
-      let category: string | null = null
-      let embedding: number[] | null = null
-
-      if (aiService.isReady()) {
-        try {
-          const aiResult = await aiService.processItem(
-            enrichedData.title,
-            enrichedData.description
-          )
-          category = aiResult.category
-          embedding = aiResult.embedding
-        } catch {
-          // Continue without AI
-        }
-      }
-
-      await ItemsRepository.create({
+      // Save item immediately — no AI blocking
+      const item = await ItemsRepository.create({
         url: enrichedData.url,
         title: enrichedData.title,
         description: enrichedData.description,
@@ -145,16 +128,35 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
         siteName: enrichedData.siteName,
         favicon: enrichedData.favicon,
         type: enrichedData.type,
-        category,
-        embedding,
       })
 
-      onSaved?.()
-      router.push('/')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save item')
-    } finally {
       setSaving(false)
+      setSaved(true)
+      onSaved?.()
+
+      // Brief success state before redirect
+      await new Promise<void>((r) => setTimeout(r, 600))
+      router.push('/')
+
+      // Process AI in background after navigation
+      processAiInBackground(item.id, enrichedData.title, enrichedData.description)
+    } catch (err) {
+      setSaving(false)
+      setError(err instanceof Error ? err.message : 'Failed to save item')
+    }
+  }
+
+  async function processAiInBackground(itemId: string, title: string, description: string | null) {
+    try {
+      const { aiService } = await import('@/lib/ai')
+      if (!aiService.isReady()) return
+
+      const aiResult = await aiService.processItem(title, description)
+
+      const { ItemsRepository } = await import('@/repositories/items-repository')
+      await ItemsRepository.updateAiData(itemId, aiResult.category, aiResult.embedding)
+    } catch {
+      // AI failure is non-critical — item is already saved
     }
   }
 
@@ -168,17 +170,9 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
 
   return (
     <div className="min-h-screen bg-[#121826] pb-20">
-      {/* Full-screen saving overlay */}
-      {saving && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#121826]/90 backdrop-blur-sm">
-          <span className="h-12 w-12 animate-spin rounded-full border-4 border-[#6366F1] border-t-transparent" />
-          <p className="mt-4 text-sm font-semibold text-white">Salvando link...</p>
-        </div>
-      )}
-
       {/* Header */}
       <header className="sticky top-0 z-50 bg-[#121826] border-b border-[#1E2532]">
-        <div className="flex items-center gap-3 px-4 py-3">
+        <div className="max-w-lg mx-auto flex items-center gap-3 px-4 py-3">
           <button
             onClick={handleCancel}
             className="min-h-[44px] min-w-[44px] flex items-center justify-center text-white"
@@ -317,13 +311,28 @@ export function AddItemModal({ initialUrl, onSaved }: AddItemModalProps) {
           </button>
           <button
             onClick={handleSave}
-            disabled={!enrichedData || saving || !!duplicateItem}
-            className="flex-1 min-h-[48px] bg-[#6366F1] hover:bg-[#5558E6] disabled:bg-[#6366F1]/40 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+            disabled={!enrichedData || saving || saved || !!duplicateItem}
+            className={`flex-1 min-h-[48px] font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${
+              saved
+                ? 'bg-emerald-500 text-white'
+                : 'bg-[#6366F1] hover:bg-[#5558E6] disabled:bg-[#6366F1]/40 disabled:cursor-not-allowed text-white'
+            }`}
           >
-            {saving && (
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            {saving ? (
+              <>
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Salvando...
+              </>
+            ) : saved ? (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Salvo!
+              </>
+            ) : (
+              'Salvar Link'
             )}
-            {saving ? 'Salvando...' : 'Salvar Link'}
           </button>
         </div>
       </main>

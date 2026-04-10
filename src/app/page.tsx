@@ -10,6 +10,7 @@ import {
   QueueSection
 } from '@/components/mobile'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { aiService } from '@/lib/ai'
 import type { Item } from '@/types'
@@ -50,6 +51,7 @@ const errorVariants = {
 }
 
 export default function HomePage() {
+  const router = useRouter()
   const {
     unviewed,
     recentlyViewed,
@@ -142,11 +144,15 @@ export default function HomePage() {
   async function handleViewSuggestion() {
     if (!suggestion) return
 
-    await markAsViewed(suggestion.id)
+    const itemId = suggestion.id
+    await markAsViewed(itemId)
     setSuggestion(null)
 
-    // Load new suggestion
-    await loadSuggestion()
+    // Navigate to item detail page
+    router.push(`/item/${itemId}`)
+
+    // Load new suggestion in background
+    loadSuggestion()
   }
 
   return (
