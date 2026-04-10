@@ -194,7 +194,7 @@ export function QueueCard({ item, onView, onDelete, onUpdateCategory, onResetDis
     }, 50)
   }, [x, actionWidth])
 
-  const variants = entranceVariant === 'stagger' ? cardEntranceVariants : cardScrollVariants = entranceVariant === 'stagger' ? cardEntranceVariants : cardScrollVariants
+  const variants = entranceVariant === 'stagger' ? cardEntranceVariants : cardScrollVariants
 
   return (
     <motion.div
